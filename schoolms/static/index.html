@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SchoolMS — School Management System</title>
+<style>
+:root{--bg:#f4f6fb;--card:#fff;--ink:#1f2937;--muted:#6b7280;--brand:#1d4ed8;--ok:#15803d;--bad:#b91c1c}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+header{background:var(--brand);color:#fff;padding:12px 20px;display:flex;justify-content:space-between;align-items:center}
+header h1{font-size:18px;margin:0}header .who{font-size:13px}
+nav{display:flex;gap:6px;padding:10px 20px;background:#e5e7eb;flex-wrap:wrap}
+nav button{border:0;padding:8px 14px;border-radius:6px;cursor:pointer;background:#fff}
+nav button.active{background:var(--brand);color:#fff}
+main{padding:20px;max-width:1100px;margin:0 auto}
+.card{background:var(--card);border-radius:8px;padding:16px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:8px;border-bottom:1px solid #e5e7eb;text-align:left}
+input,select{padding:8px;margin:4px 4px 4px 0;border:1px solid #d1d5db;border-radius:6px}
+button.primary{background:var(--brand);color:#fff;border:0;padding:8px 14px;border-radius:6px;cursor:pointer}
+.stat{display:inline-block;background:#eef2ff;border-radius:8px;padding:12px 18px;margin:0 10px 10px 0;min-width:130px}
+.stat b{font-size:22px;display:block}.muted{color:var(--muted);font-size:13px}.err{color:var(--bad)}.ok{color:var(--ok)}
+#login{max-width:360px;margin:60px auto}.hidden{display:none}
+</style>
+</head>
+<body>
+<header><h1>SchoolMS — School Management System</h1><span class="who" id="who"></span></header>
+<div id="login" class="card">
+  <h2>Sign in</h2>
+  <p class="muted">Demo accounts: admin / Admin1234 · office / Office1234 · t.alice / Teacher1234 · s.bob / Student1234</p>
+  <input id="username" placeholder="Username" autocomplete="username"><br>
+  <input id="password" type="password" placeholder="Password" autocomplete="current-password"><br>
+  <button class="primary" onclick="login()">Sign in</button>
+  <p id="loginErr" class="err"></p>
+</div>
+<div id="app" class="hidden">
+  <nav id="tabs"></nav>
+  <main id="view"></main>
+</div>
+<script>
+const API = "/api/v1";
+let token = localStorage.getItem("schoolms_token") || "";
+let me = null;
+const TABS = [["dashboard","Dashboard"],["students","Students"],["teachers","Teachers"],["classes","Classes"],["attendance","Attendance"],["grades","Grades"],["plan","Plan"]];
+
+async function api(path, opts = {}) {
+  const res = await fetch(API + path, {headers: Object.assign({"Content-Type":"application/json"}, token?{Authorization:"Bearer "+token}:{}, opts.headers||{}), ...opts});
+  if (res.status === 401) { logout(); throw new Error("Session expired"); }
+  const text = await res.text();
+  let body = null; try { body = text ? JSON.parse(text) : null; } catch(e){ body = text; }
+  if (!res.ok) throw new Error((body && body.detail) || res.statusText);
+  return body;
+}
+async function login() {
+  const username = document.getElementById("username").value, password = document.getElementById("password").value;
+  try {
+    const data = await api("/auth/login", {method:"POST", body: JSON.stringify({username, password})});
+    token = data.access_token; me = data.user; localStorage.setItem("schoolms_token", token);
+    boot();
+  } catch(e){ document.getElementById("loginErr").textContent = e.message; }
+}
+function logout(){ token=""; me=null; localStorage.removeItem("schoolms_token"); location.reload(); }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function table(rows, cols){
+  if(!rows.length) return "<p class='muted'>No records.</p>";
+  return "<table><tr>"+cols.map(c=>"<th>"+esc(c[1])+"</th>").join("")+"</tr>"+
+    rows.map(r=>"<tr>"+cols.map(c=>"<td>"+esc(r[c[0]])+"</td>").join("")+"</tr>").join("")+"</table>";
+}
+function boot(){
+  document.getElementById("login").classList.add("hidden");
+  document.getElementById("app").classList.remove("hidden");
+  document.getElementById("who").textContent = me.username+" ("+me.role+") ";
+  const nav = document.getElementById("tabs");
+  TABS.forEach(([id,label],i)=>{
+    const b=document.createElement("button"); b.textContent=label; if(i===0)b.classList.add("active");
+    b.onclick=()=>{ nav.querySelectorAll("button").forEach(x=>x.classList.remove("active")); b.classList.add("active"); show(id); };
+    nav.appendChild(b);
+  });
+  const out=document.createElement("button"); out.textContent="Sign out"; out.onclick=logout; nav.appendChild(out);
+  show("dashboard");
+}
+async function show(id){
+  const v=document.getElementById("view"); v.innerHTML="<p class='muted'>Loading…</p>";
+  try{
+    if(id==="dashboard"){ const s=await api("/dashboard/stats");
+      v.innerHTML=`<div class="card"><h2>Overview</h2>
+      <span class="stat"><b>${s.students}</b>students</span><span class="stat"><b>${s.teachers}</b>teachers</span>
+      <span class="stat"><b>${s.classes}</b>classes</span><span class="stat"><b>${s.enrollments}</b>enrollments</span>
+      <span class="stat"><b>${s.attendance_today.present}/${s.attendance_today.total}</b>present today</span>
+      <span class="stat"><b>${s.grades_recorded}</b>grades</span></div>
+      <div class="card"><h3>Users by role</h3>${table(s.users_by_role,[["role","Role"],["count","Count"]])}</div>`;
+    } else if(id==="students"){ const rows=await api("/students");
+      v.innerHTML=`<div class="card"><h2>Students</h2>${table(rows,[["admission_no","Admission #"],["first_name","First"],["last_name","Last"],["status","Status"],["guardian_name","Guardian"]])}
+      <h3>Add student</h3><input id="f_adm" placeholder="Admission #"><input id="f_fn" placeholder="First name"><input id="f_ln" placeholder="Last name">
+      <button class="primary" onclick="addStudent()">Add</button> <span id="msg" class="muted"></span></div>`;
+    } else if(id==="teachers"){ const rows=await api("/teachers");
+      v.innerHTML=`<div class="card"><h2>Teachers</h2>${table(rows,[["staff_no","Staff #"],["first_name","First"],["last_name","Last"],["subject","Subject"],["status","Status"]])}
+      <h3>Add teacher</h3><input id="f_staff" placeholder="Staff #"><input id="f_fn" placeholder="First name"><input id="f_ln" placeholder="Last name"><input id="f_sub" placeholder="Subject">
+      <button class="primary" onclick="addTeacher()">Add</button> <span id="msg" class="muted"></span></div>`;
+    } else if(id==="classes"){ const rows=await api("/classes");
+      v.innerHTML=`<div class="card"><h2>Classes</h2>${table(rows,[["code","Code"],["name","Name"],["grade_level","Level"],["term","Term"],["enrolled","Enrolled"],["capacity","Capacity"]])}
+      <h3>Add class</h3><input id="f_code" placeholder="Code"><input id="f_name" placeholder="Name"><input id="f_level" placeholder="Level">
+      <button class="primary" onclick="addClass()">Add</button> <span id="msg" class="muted"></span></div>`;
+    } else if(id==="attendance"){
+      const cls=(await api("/classes").catch(()=>[]));
+      const opts=cls.map(c=>`<option value="${c.id}">${esc(c.code)} — ${esc(c.name)}</option>`).join("");
+      v.innerHTML=`<div class="card"><h2>Attendance</h2>
+      <select id="f_class">${opts}</select> <input id="f_day" type="date" value="${new Date().toISOString().slice(0,10)}">
+      <button class="primary" onclick="loadRoster()">Load roster</button><div id="roster"></div></div>
+      <div class="card"><h3>Summary</h3><button class="primary" onclick="attSummary()">Show summary</button><div id="sum"></div></div>`;
+    } else if(id==="grades"){ const assigns=await api("/assignments").catch(()=>[]);
+      v.innerHTML=`<div class="card"><h2>Assignments</h2>${table(assigns,[["id","ID"],["title","Title"],["max_score","Max score"],["class_id","Class"]])}
+      <h3>Add assignment</h3><input id="f_class" type="number" placeholder="Class ID"><input id="f_title" placeholder="Title"><input id="f_max" type="number" value="100">
+      <button class="primary" onclick="addAssignment()">Add</button> <span id="msg" class="muted"></span></div>
+      <div class="card"><h3>Record grade</h3><input id="g_a" type="number" placeholder="Assignment ID"><input id="g_s" type="number" placeholder="Student ID"><input id="g_v" type="number" placeholder="Score">
+      <button class="primary" onclick="addGrade()">Save</button> <span id="msg2" class="muted"></span></div>
+      <div class="card"><h3>Report card</h3><input id="r_s" type="number" placeholder="Student ID"><button class="primary" onclick="reportCard()">View</button><div id="rc"></div></div>`;
+    } else if(id==="plan"){ const p=await api("/plan");
+      v.innerHTML=`<div class="card"><h2>Scope</h2><p class="muted">In scope</p><ul>${p.scope.in_scope.map(x=>"<li>"+esc(x)+"</li>").join("")}</ul></div>
+      <div class="card"><h2>Roles</h2>${table(Object.entries(p.roles).map(([k,v2])=>({role:k,desc:v2.description})),[["role","Role"],["desc","Description"]])}</div>
+      <div class="card"><h2>Modules &amp; MVP</h2>${table(p.modules,[["id","ID"],["name","Module"],["phase","Phase"]])}</div>
+      <div class="card"><h2>Milestones</h2>${table(p.milestones,[["id","ID"],["name","Milestone"],["acceptance","Acceptance"]])}</div>`;
+    }
+  }catch(e){ v.innerHTML=`<div class="card"><p class="err">${esc(e.message)}</p></div>`; }
+}
+async function addStudent(){ try{ await api("/students",{method:"POST",body:JSON.stringify({admission_no:val("f_adm"),first_name:val("f_fn"),last_name:val("f_ln")})}); show("students"); }catch(e){ msg(e); } }
+async function addTeacher(){ try{ await api("/teachers",{method:"POST",body:JSON.stringify({staff_no:val("f_staff"),first_name:val("f_fn"),last_name:val("f_ln"),subject:val("f_sub")})}); show("teachers"); }catch(e){ msg(e); } }
+async function addClass(){ try{ await api("/classes",{method:"POST",body:JSON.stringify({code:val("f_code"),name:val("f_name"),grade_level:val("f_level")})}); show("classes"); }catch(e){ msg(e); } }
+async function addAssignment(){ try{ await api("/assignments",{method:"POST",body:JSON.stringify({class_id:+val("f_class"),title:val("f_title"),max_score:+val("f_max")})}); show("grades"); }catch(e){ msg(e); } }
+async function addGrade(){ try{ const g=await api("/grades",{method:"POST",body:JSON.stringify({assignment_id:+val("g_a"),student_id:+val("g_s"),score:+val("g_v")})}); document.getElementById("msg2").textContent="Saved grade #"+g.id; }catch(e){ document.getElementById("msg2").textContent=e.message; } }
+async function loadRoster(){ const cid=val("f_class"); const roster=await api(`/classes/${cid}/roster`);
+  document.getElementById("roster").innerHTML = roster.length ? table(roster.map(s=>({id:s.id,name:s.first_name+" "+s.last_name,adm:s.admission_no})),[["id","ID"],["name","Name"],["adm","Admission #"]]) +
+  `<p class="muted">Mark all present/absent:</p><button class="primary" onclick="markAll(${cid},'present')">All present</button> <button class="primary" onclick="markAll(${cid},'absent')">All absent</button> <span id="mmsg" class="muted"></span>` : "<p class='muted'>Empty roster.</p>"; }
+async function markAll(cid,st){ const day=document.getElementById("f_day").value; const roster=await api(`/classes/${cid}/roster`);
+  await api("/attendance",{method:"POST",body:JSON.stringify(roster.map(s=>({student_id:s.id,class_id:+cid,day,status:st})))});
+  document.getElementById("mmsg").textContent="Saved "+roster.length+" records."; }
+async function attSummary(){ const cid=val("f_class"); const day=document.getElementById("f_day").value;
+  const s=await api(`/attendance/summary?class_id=${cid}&day=${day}`);
+  document.getElementById("sum").innerHTML=`<p>Total ${s.total}: present ${s.present}, absent ${s.absent}, late ${s.late}, excused ${s.excused} (rate ${s.rate})</p>`; }
+async function reportCard(){ const rc=await api("/report-cards/"+val("r_s"));
+  document.getElementById("rc").innerHTML=`<p>Average ${rc.average_pct}% — grade ${rc.letter}</p>`+table(rc.grades,[["assignment_id","Assignment"],["score","Score"],["comment","Comment"]]); }
+function val(id){ return document.getElementById(id).value; }
+function msg(e){ document.getElementById("msg").textContent=e.message; }
+(async function(){ if(token){ try{ me=await api("/auth/me"); boot(); }catch(e){ /* stay on login */ } } })();
+</script>
+</body>
+</html>
