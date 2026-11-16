@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SchoolMS — Roles &amp; Permissions</title>
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">SchoolMS <span>Task 3</span></div>
+  <nav>
+    <a href="/">Scope</a>
+    <a href="/roles.html" class="active">Roles</a>
+    <a href="/workflows.html">Workflows</a>
+    <a href="/modules.html">Modules &amp; MVP</a>
+    <a href="/architecture.html">Architecture</a>
+    <a href="/milestones.html">Milestones</a>
+  </nav>
+</header>
+<main>
+  <h1>Roles &amp; permissions</h1>
+  <p class="lede">Four roles with an enforced permission matrix. Use the checker to verify any role/permission pair against the live RBAC rules.</p>
+
+  <div class="grid" id="roles"></div>
+
+  <h2>Permission matrix</h2>
+  <div id="matrix">Loading…</div>
+
+  <h2>Access checker</h2>
+  <form class="inline" id="check-form">
+    <select id="check-role"></select>
+    <select id="check-perm"></select>
+    <button type="submit">Check</button>
+    <span id="check-result"></span>
+  </form>
+</main>
+<footer>SchoolMS Task 3 — scope, roles, workflows, MVP, architecture, milestones.</footer>
+<script src="/js/app.js"></script>
+<script>
+fetch('/api/roles').then(r => r.json()).then(roles => {
+  document.getElementById('roles').innerHTML = roles.map(x =>
+    `<div class="card"><h3>${esc(x.title)} <span class="tag">${esc(x.name)}</span></h3><p>${esc(x.description)}</p></div>`
+  ).join('');
+  const perms = [...new Set(roles.flatMap(x => x.permissions))].sort();
+  let html = '<table><tr><th>Permission</th>' + roles.map(x => `<th>${esc(x.name)}</th>`).join('') + '</tr>';
+  for (const p of perms) {
+    html += `<tr><td>${esc(p)}</td>` + roles.map(x =>
+      x.permissions.includes(p) ? '<td class="allow">yes</td>' : '<td class="deny">–</td>').join('') + '</tr>';
+  }
+  document.getElementById('matrix').innerHTML = html + '</table>';
+  const roleSel = document.getElementById('check-role');
+  const permSel = document.getElementById('check-perm');
+  roleSel.innerHTML = roles.map(x => `<option>${esc(x.name)}</option>`).join('');
+  permSel.innerHTML = perms.map(p => `<option>${esc(p)}</option>`).join('');
+});
+document.getElementById('check-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const res = await fetch('/api/auth/check', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({role: document.getElementById('check-role').value,
+                          permission: document.getElementById('check-perm').value})
+  });
+  const data = await res.json();
+  document.getElementById('check-result').textContent = data.allowed ? 'ALLOWED' : 'DENIED';
+});
+</script>
+</body>
+</html>

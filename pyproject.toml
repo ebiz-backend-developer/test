@@ -1,0 +1,8 @@
+[project]
+name = "schoolms-task3"
+version = "0.1.0"
+description = "Task 3: requirements and roles as working software (RBAC, workflows, MVP, stack, milestones)."
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
