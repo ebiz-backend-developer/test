@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Delivery Milestones</title>
+<style>
+  :root { --ink: #1a1a1a; --muted: #555; --line: #ddd; --bg: #fff; --panel: #f4f4f2;
+          --accent: #0b5fff; --good: #1c7c2e; --warn: #b25e00; --bad: #b3261e; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+         font-size: 14px; line-height: 1.45; }
+  header { display: flex; align-items: baseline; gap: 1rem; padding: 0.9rem 1.2rem;
+           border-bottom: 2px solid var(--ink); flex-wrap: wrap; }
+  header h1 { font-size: 1.25rem; margin: 0; }
+  header .sub { color: var(--muted); font-size: 0.85rem; }
+  header .rolebox { margin-left: auto; font-size: 0.85rem; }
+  nav { display: flex; gap: 0.25rem; padding: 0.5rem 1.2rem; border-bottom: 1px solid var(--line);
+        background: var(--panel); flex-wrap: wrap; }
+  nav button { border: 1px solid transparent; background: none; padding: 0.35rem 0.7rem;
+               font-size: 0.9rem; cursor: pointer; border-radius: 4px; }
+  nav button[aria-selected="true"] { background: var(--ink); color: #fff; }
+  main { padding: 1rem 1.2rem 3rem; max-width: 1100px; }
+  section.tab { display: none; }
+  section.tab.active { display: block; }
+  table { border-collapse: collapse; width: 100%; margin: 0.6rem 0 1.2rem; }
+  th, td { border: 1px solid var(--line); padding: 0.4rem 0.6rem; text-align: left;
+           vertical-align: top; font-size: 0.88rem; }
+  th { background: var(--panel); }
+  .pill { display: inline-block; padding: 0.05rem 0.45rem; border-radius: 999px;
+          font-size: 0.75rem; border: 1px solid var(--line); background: var(--panel); }
+  .pill.good { color: var(--good); border-color: var(--good); background: #eef7f0; }
+  .pill.warn { color: var(--warn); border-color: var(--warn); background: #fbf3e8; }
+  .pill.bad { color: var(--bad); border-color: var(--bad); background: #fbeeee; }
+  form.inline { background: var(--panel); border: 1px solid var(--line); padding: 0.8rem;
+                margin: 0 0 1.2rem; display: grid; gap: 0.5rem;
+                grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+  form.inline h3 { grid-column: 1 / -1; margin: 0 0 0.2rem; font-size: 0.95rem; }
+  label { font-size: 0.78rem; color: var(--muted); display: grid; gap: 0.15rem; }
+  input, select, textarea { font: inherit; font-size: 0.88rem; padding: 0.3rem 0.4rem;
+                            border: 1px solid var(--line); border-radius: 4px; }
+  button.action { font-size: 0.85rem; padding: 0.3rem 0.7rem; cursor: pointer;
+                  border: 1px solid var(--ink); background: var(--ink); color: #fff; border-radius: 4px; }
+  button.action.secondary { background: #fff; color: var(--ink); }
+  button.action:disabled { opacity: 0.5; cursor: default; }
+  #alert { margin: 0.8rem 1.2rem 0; padding: 0.6rem 0.8rem; border: 1px solid var(--bad);
+           color: var(--bad); background: #fbeeee; display: none; font-size: 0.88rem; }
+  #alert.show { display: block; }
+  .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; }
+  h2 { font-size: 1.05rem; margin: 1rem 0 0.4rem; }
+  .muted { color: var(--muted); }
+  ul.tight { margin: 0.3rem 0; padding-left: 1.2rem; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Delivery Milestones</h1>
+  <span class="sub">phases · timeline · risks · acceptance</span>
+  <span class="rolebox">acting as
+    <select id="role" aria-label="Acting role"></select>
+  </span>
+</header>
+<div id="alert" role="alert"></div>
+<nav id="tabs" aria-label="Sections"></nav>
+<main>
+  <section class="tab" id="tab-overview"><h2>Roadmap overview</h2><div id="overview"></div></section>
+  <section class="tab" id="tab-scope"><h2>Scope &amp; roles</h2><div id="scope"></div></section>
+  <section class="tab" id="tab-modules"><h2>Core modules &amp; MVP</h2><div id="modules"></div></section>
+  <section class="tab" id="tab-arch"><h2>Architecture &amp; tech stack</h2><div id="arch"></div></section>
+  <section class="tab" id="tab-milestones"><h2>Milestones &amp; timeline</h2><div id="milestones"></div></section>
+  <section class="tab" id="tab-risks"><h2>Risks</h2><div id="risks"></div></section>
+  <section class="tab" id="tab-approvals"><h2>Approvals</h2><div id="approvals"></div></section>
+</main>
+<script>
+"use strict";
+const TABS = [["overview","Overview"],["scope","Scope & roles"],["modules","Modules & MVP"],
+  ["arch","Architecture"],["milestones","Milestones"],["risks","Risks"],["approvals","Approvals"]];
+let ROLE = localStorage.getItem("dm-role") || "stakeholder";
+const KNOWN_ROLES = ["admin","product_owner","tech_lead","developer","stakeholder"];
+
+function showError(msg) {
+  const el = document.getElementById("alert");
+  el.textContent = "Save failed: " + msg + " — nothing was stored.";
+  el.classList.add("show");
+  clearTimeout(showError._t);
+  showError._t = setTimeout(() => el.classList.remove("show"), 8000);
+}
+function esc(s) { return String(s ?? "").replace(/[&<>"']/g, c =>
+  ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function pill(text, kind) { return `<span class="pill ${kind||""}">${esc(text)}</span>`; }
+function statusPill(s) {
+  const good = ["done","approved","met","selected","closed"];
+  const bad = ["failed","rejected","at_risk"];
+  const warn = ["in_progress","mitigating","changes_requested","planned"];
+  const kind = good.includes(s) ? "good" : bad.includes(s) ? "bad" : warn.includes(s) ? "warn" : "";
+  return pill(s, kind);
+}
+
+async function api(method, path, body) {
+  const opts = { method, headers: { "X-Role": ROLE } };
+  if (body !== undefined) {
+    opts.headers["Content-Type"] = "application/json";
+    opts.body = JSON.stringify(body);
+  }
+  let res;
+  try { res = await fetch(path, opts); }
+  catch (e) { showError("server unreachable (" + e.message + ")"); throw e; }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) { showError(data.error || ("HTTP " + res.status)); throw new Error(data.error || res.status); }
+  return data;
+}
+const get = (p) => api("GET", p);
+const post = (p, b) => api("POST", p, b);
+
+/* ---------- tab + role chrome ---------- */
+function initChrome() {
+  const nav = document.getElementById("tabs");
+  TABS.forEach(([id, label], i) => {
+    const b = document.createElement("button");
+    b.textContent = label;
+    b.setAttribute("aria-selected", i === 0 ? "true" : "false");
+    b.onclick = () => {
+      document.querySelectorAll("nav button").forEach(x => x.setAttribute("aria-selected", "false"));
+      b.setAttribute("aria-selected", "true");
+      document.querySelectorAll("section.tab").forEach(s => s.classList.remove("active"));
+      document.getElementById("tab-" + id).classList.add("active");
+      render(id);
+    };
+    nav.appendChild(b);
+  });
+  document.getElementById("tab-overview").classList.add("active");
+  const sel = document.getElementById("role");
+  KNOWN_ROLES.forEach(r => {
+    const o = document.createElement("option");
+    o.value = r; o.textContent = r;
+    if (r === ROLE) o.selected = true;
+    sel.appendChild(o);
+  });
+  sel.onchange = () => {
+    ROLE = sel.value;
+    try { localStorage.setItem("dm-role", ROLE); } catch (e) { showError("cannot persist role: " + e.message); }
+    renderAll();
+  };
+}
+
+/* ---------- renderers ---------- */
+async function renderOverview() {
+  const el = document.getElementById("overview");
+  el.innerHTML = '<p class="muted">Loading…</p>';
+  const r = await get("/api/v1/roadmap");
+  let html = "";
+  r.phases.forEach(p => {
+    html += `<h2>${esc(p.phase)} ${pill(p.approved + "/" + p.total + " approved", p.approved === p.total && p.total ? "good" : "")}</h2>`;
+    if (!p.milestones.length) { html += '<p class="muted">No milestones in this phase.</p>'; return; }
+    html += "<table><tr><th>Milestone</th><th>Timeline</th><th>Status</th><th>Criteria</th><th>Open risks</th></tr>";
+    p.milestones.forEach(m => {
+      html += `<tr><td>${esc(m.name)}</td><td>${esc(m.start_date)} → ${esc(m.end_date)}</td>` +
+        `<td>${statusPill(m.status)}</td>` +
+        `<td>${m.acceptance.criteria_met}/${m.acceptance.criteria_total} met</td>` +
+        `<td>${m.acceptance.open_risks} (${m.acceptance.high_exposure_open_risks} high)</td></tr>`;
+    });
+    html += "</table>";
+  });
+  html += `<h2>MVP slice ${pill(r.mvp.done + "/" + r.mvp.total + " done", r.mvp.done === r.mvp.total ? "good" : "")}</h2>`;
+  html += `<p class="muted">${r.mvp.points} story points in MVP.</p>`;
+  html += "<h2>Selected stack</h2><ul class='tight'>" +
+    r.stack.map(d => `<li><b>${esc(d.category)}</b>: ${esc(d.option_name)}</li>`).join("") + "</ul>";
+  el.innerHTML = html;
+}
+
+async function renderScope() {
+  const el = document.getElementById("scope");
+  el.innerHTML = '<p class="muted">Loading…</p>';
+  const [{ scope }, { roles }] = await Promise.all([get("/api/v1/scope"), get("/api/v1/roles")]);
+  const list = (arr) => "<ul class='tight'>" + (arr || []).map(i => `<li>${esc(i)}</li>`).join("") + "</ul>";
+  let html = scope
+    ? `<p><b>Vision.</b> ${esc(scope.vision)}</p>
+       <div class="cols"><div><h2>In scope</h2>${list(scope.in_scope)}</div>
+       <div><h2>Out of scope</h2>${list(scope.out_of_scope)}</div>
+       <div><h2>Assumptions</h2>${list(scope.assumptions)}</div>
+       <div><h2>Constraints</h2>${list(scope.constraints)}</div></div>
+       <p class="muted">Updated ${esc(scope.updated_at)}</p>`
+    : "<p>No scope saved yet.</p>";
+  html += `<form class="inline" id="scopeForm"><h3>Edit scope (admin / product_owner, one item per line)</h3>
+    <label style="grid-column:1/-1">Vision<textarea name="vision" rows="2">${esc(scope?.vision || "")}</textarea></label>
+    <label>In scope<textarea name="in_scope" rows="4">${esc((scope?.in_scope || []).join("\n"))}</textarea></label>
+    <label>Out of scope<textarea name="out_of_scope" rows="4">${esc((scope?.out_of_scope || []).join("\n"))}</textarea></label>
+    <label>Assumptions<textarea name="assumptions" rows="4">${esc((scope?.assumptions || []).join("\n"))}</textarea></label>
+    <label>Constraints<textarea name="constraints" rows="4">${esc((scope?.constraints || []).join("\n"))}</textarea></label>
+    <span><button class="action" type="submit">Save scope</button></span></form>`;
+  html += "<h2>User roles</h2><table><tr><th>Role</th><th>Description</th></tr>" +
+    roles.map(r => `<tr><td><b>${esc(r.name)}</b></td><td>${esc(r.description)}</td></tr>`).join("") + "</table>";
+  el.innerHTML = html;
+  document.getElementById("scopeForm").onsubmit = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const lines = (k) => String(fd.get(k) || "").split("\n").map(s => s.trim()).filter(Boolean);
+    await api("PUT", "/api/v1/scope", { vision: String(fd.get("vision") || ""),
+      in_scope: lines("in_scope"), out_of_scope: lines("out_of_scope"),
+      assumptions: lines("assumptions"), constraints: lines("constraints") });
+    renderScope();
+  };
+}
+
+async function renderModules() {
+  const el = document.getElementById("modules");
+  el.innerHTML = '<p class="muted">Loading…</p>';
+  const [{ modules }, mvp] = await Promise.all([get("/api/v1/modules"), get("/api/v1/mvp")]);
+  let html = `<p>MVP: <b>${mvp.done}/${mvp.total}</b> modules done, <b>${mvp.points}</b> points. ` +
+    `<span class="muted">${esc(JSON.stringify(mvp.by_status))}</span></p>`;
+  html += `<form class="inline" id="modForm"><h3>Add module (admin / product_owner)</h3>
+    <label>Name<input name="name" required></label>
+    <label>Description<input name="description"></label>
+    <label>Priority<select name="priority"><option>P0</option><option>P1</option><option selected>P2</option></select></label>
+    <label>MVP<select name="mvp"><option value="0">no</option><option value="1">yes</option></select></label>
+    <label>Points<input name="effort_points" type="number" min="0" value="1"></label>
+    <label>Depends on (comma names)<input name="depends_on"></label>
+    <span><button class="action" type="submit">Add</button></span></form>`;
+  html += "<table><tr><th>Module</th><th>Pri</th><th>MVP</th><th>Pts</th><th>Status</th><th>Depends on</th><th></th></tr>" +
+    modules.map(m => `<tr><td><b>${esc(m.name)}</b><br><span class="muted">${esc(m.description)}</span></td>` +
+      `<td>${pill(m.priority, m.priority === "P0" ? "bad" : m.priority === "P1" ? "warn" : "")}</td>` +
+      `<td>${m.mvp ? pill("MVP", "good") : "—"}</td><td>${m.effort_points}</td>` +
+      `<td>${statusPill(m.status)}</td><td>${esc((m.depends_on || []).join(", "))}</td>` +
+      `<td><button class="action secondary" data-advance="${m.id}">advance</button></td></tr>`).join("") + "</table>";
+  el.innerHTML = html;
+  document.getElementById("modForm").onsubmit = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    await post("/api/v1/modules", { name: String(fd.get("name") || ""),
+      description: String(fd.get("description") || ""), priority: fd.get("priority"),
+      mvp: fd.get("mvp") === "1", effort_points: Number(fd.get("effort_points") || 1),
+      depends_on: String(fd.get("depends_on") || "").split(",").map(s => s.trim()).filter(Boolean) });
+    renderModules();
+  };
+  const order = ["backlog", "planned", "in_progress", "done"];
+  el.querySelectorAll("[data-advance]").forEach(b => b.onclick = async () => {
+    const m = modules.find(x => String(x.id) === b.dataset.advance);
+    const next = order[Math.min(order.indexOf(m.status) + 1, order.length - 1)];
+    await api("PATCH", "/api/v1/modules/" + m.id, { status: next });
+    renderModules();
+  });
+}
+
+async function renderArch() {
+  const el = document.getElementById("arch");
+  el.innerHTML = '<p class="muted">Loading…</p>';
+  const { decisions } = await get("/api/v1/arch");
+  let html = `<form class="inline" id="archForm"><h3>Record decision (admin / tech_lead)</h3>
+    <label>Category<input name="category" required placeholder="e.g. datastore"></label>
+    <label>Option<input name="option_name" required></label>
+    <label>Status<select name="status"><option>proposed</option><option>selected</option><option>rejected</option></select></label>
+    <label style="grid-column:1/-1">Rationale (required to select)<input name="rationale"></label>
+    <span><button class="action" type="submit">Save</button></span></form>`;
+  html += "<table><tr><th>Category</th><th>Option</th><th>Status</th><th>Rationale</th><th>By</th></tr>" +
+    decisions.map(d => `<tr><td><b>${esc(d.category)}</b></td><td>${esc(d.option_name)}</td>` +
+      `<td>${statusPill(d.status)}</td><td>${esc(d.rationale)}</td><td>${esc(d.decided_by)}</td></tr>`).join("") + "</table>";
+  el.innerHTML = html;
+  document.getElementById("archForm").onsubmit = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    await post("/api/v1/arch", { category: String(fd.get("category") || ""),
+      option_name: String(fd.get("option_name") || ""), status: fd.get("status"),
+      rationale: String(fd.get("rationale") || "") });
+    renderArch();
+  };
+}
+
+async function renderMilestones() {
+  const el = document.getElementById("milestones");
+  el.innerHTML = '<p class="muted">Loading…</p>';
+  const { milestones } = await get("/api/v1/milestones");
+  let html = `<form class="inline" id="msForm"><h3>Add milestone (admin / product_owner / tech_lead)</h3>
+    <label>Name<input name="name" required></label>
+    <label>Phase<select name="phase"><option>discovery</option><option>mvp</option><option>beta</option><option>ga</option><option>scale</option></select></label>
+    <label>Start<input name="start_date" type="date"></label>
+    <label>End<input name="end_date" type="date"></label>
+    <label style="grid-column:1/-1">Description<input name="description"></label>
+    <span><button class="action" type="submit">Add</button></span></form>`;
+  for (const m of milestones) {
+    const d = await get("/api/v1/milestones/" + m.id);
+    html += `<h2>${esc(m.name)} ${statusPill(m.status)}</h2>
+      <p class="muted">${esc(m.phase)} · ${esc(m.start_date)} → ${esc(m.end_date)} · owner: ${esc(m.owner_role)}<br>${esc(m.description)}</p>
+      <p>Readiness: <b>${d.acceptance.criteria_met}/${d.acceptance.criteria_total}</b> criteria met, ` +
+      `<b>${d.acceptance.open_risks}</b> open risks (${d.acceptance.high_exposure_open_risks} high) → ` +
+      (d.acceptance.ready ? pill("READY", "good") : pill("NOT READY", "warn")) + "</p>";
+    html += "<table><tr><th>Criterion</th><th>Verification</th><th>Status</th><th></th></tr>" +
+      (d.criteria.map(c => `<tr><td>${esc(c.description)}</td><td>${esc(c.verification_method)}</td>` +
+        `<td>${statusPill(c.status)}</td>` +
+        `<td><button class="action secondary" data-criterion="${c.id}" data-ms="${m.id}">mark met</button></td></tr>`).join("") ||
+        '<tr><td colspan="4" class="muted">No criteria yet.</td></tr>') + "</table>";
+    html += `<form class="inline" data-critform="${m.id}"><h3>Add criterion</h3>
+      <label style="grid-column:1/-1">Description<input name="description" required></label>
+      <label>Verification method<input name="verification_method"></label>
+      <span><button class="action" type="submit">Add</button></span></form>`;
+    html += `<p><button class="action secondary" data-msstatus="${m.id}">advance status</button>
+      <button class="action" data-approve="${m.id}">approve (product_owner)</button></p>`;
+  }
+  el.innerHTML = html;
+  document.getElementById("msForm").onsubmit = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    await post("/api/v1/milestones", { name: String(fd.get("name") || ""), phase: fd.get("phase"),
+      start_date: fd.get("start_date"), end_date: fd.get("end_date"),
+      description: String(fd.get("description") || "") });
+    renderMilestones();
+  };
+  el.querySelectorAll("[data-critform]").forEach(f => f.onsubmit = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    await post("/api/v1/criteria", { milestone_id: Number(f.dataset.critform),
+      description: String(fd.get("description") || ""),
+      verification_method: String(fd.get("verification_method") || "") });
+    renderMilestones();
+  });
+  el.querySelectorAll("[data-criterion]").forEach(b => b.onclick = async () => {
+    const d = await get("/api/v1/milestones/" + b.dataset.ms);
+    const c = d.criteria.find(x => String(x.id) === b.dataset.criterion);
+    await post("/api/v1/criteria", { ...c, status: "met" });
+    renderMilestones();
+  });
+  const order = ["draft", "planned", "in_progress", "at_risk", "done"];
+  el.querySelectorAll("[data-msstatus]").forEach(b => b.onclick = async () => {
+    const m = milestones.find(x => String(x.id) === b.dataset.msstatus);
+    const next = order[Math.min(order.indexOf(m.status) + 1, order.length - 1)] || "done";
+    await api("PATCH", "/api/v1/milestones/" + m.id, { status: next });
+    renderMilestones();
+  });
+  el.querySelectorAll("[data-approve]").forEach(b => b.onclick = async () => {
+    const comment = prompt("Approval comment (optional for approval):", "") ?? "";
+    await post("/api/v1/approvals", { milestone_id: Number(b.dataset.approve),
+      decision: "approved", comment });
+    renderMilestones();
+  });
+}
+
+async function renderRisks() {
+  const el = document.getElementById("risks");
+  el.innerHTML = '<p class="muted">Loading…</p>';
+  const [{ risks }, { milestones }] = await Promise.all([get("/api/v1/risks"), get("/api/v1/milestones")]);
+  const nameOf = (id) => (milestones.find(m => m.id === id) || {}).name || "—";
+  let html = `<form class="inline" id="riskForm"><h3>Add risk</h3>
+    <label style="grid-column:1/-1">Title<input name="title" required></label>
+    <label>Milestone<select name="milestone_id"><option value="">none (program-level)</option>
+      ${milestones.map(m => `<option value="${m.id}">${esc(m.name)}</option>`).join("")}</select></label>
+    <label>Likelihood<select name="likelihood"><option>low</option><option selected>medium</option><option>high</option></select></label>
+    <label>Impact<select name="impact"><option>low</option><option selected>medium</option><option>high</option></select></label>
+    <label>Status<select name="status"><option>open</option><option>mitigating</option><option>closed</option></select></label>
+    <label style="grid-column:1/-1">Mitigation (required for high exposure)<input name="mitigation"></label>
+    <span><button class="action" type="submit">Add</button></span></form>`;
+  html += "<table><tr><th>Risk</th><th>Milestone</th><th>L×I</th><th>Exposure</th><th>Status</th><th>Mitigation</th></tr>" +
+    risks.map(r => `<tr><td><b>${esc(r.title)}</b></td><td>${esc(nameOf(r.milestone_id))}</td>` +
+      `<td>${esc(r.likelihood)}×${esc(r.impact)}</td>` +
+      `<td>${pill("exposure " + r.exposure, r.exposure >= 6 ? "bad" : r.exposure >= 4 ? "warn" : "good")}</td>` +
+      `<td>${statusPill(r.status)}</td><td>${esc(r.mitigation)}</td></tr>`).join("") + "</table>";
+  el.innerHTML = html;
+  document.getElementById("riskForm").onsubmit = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const mid = String(fd.get("milestone_id") || "");
+    await post("/api/v1/risks", { title: String(fd.get("title") || ""),
+      milestone_id: mid ? Number(mid) : null, likelihood: fd.get("likelihood"),
+      impact: fd.get("impact"), status: fd.get("status"),
+      mitigation: String(fd.get("mitigation") || "") });
+    renderRisks();
+  };
+}
+
+async function renderApprovals() {
+  const el = document.getElementById("approvals");
+  el.innerHTML = '<p class="muted">Loading…</p>';
+  const [{ approvals }, { milestones }] = await Promise.all([get("/api/v1/approvals"), get("/api/v1/milestones")]);
+  const nameOf = (id) => (milestones.find(m => m.id === id) || {}).name || ("#" + id);
+  el.innerHTML = "<table><tr><th>#</th><th>Milestone</th><th>Approver</th><th>Decision</th><th>Comment</th><th>At</th></tr>" +
+    (approvals.map(a => `<tr><td>${a.id}</td><td>${esc(nameOf(a.milestone_id))}</td>` +
+      `<td>${esc(a.approver_role)}</td><td>${statusPill(a.decision)}</td>` +
+      `<td>${esc(a.comment)}</td><td>${esc(a.created_at)}</td></tr>`).join("") ||
+      '<tr><td colspan="6" class="muted">No approvals recorded yet.</td></tr>') + "</table>" +
+    '<p class="muted">Record approvals from the Milestones tab (product_owner or admin, readiness gate enforced).</p>';
+}
+
+const RENDER = { overview: renderOverview, scope: renderScope, modules: renderModules,
+  arch: renderArch, milestones: renderMilestones, risks: renderRisks, approvals: renderApprovals };
+async function render(id) { try { await RENDER[id](); } catch (e) { /* alert already shown */ } }
+function renderAll() {
+  const active = document.querySelector("nav button[aria-selected='true']");
+  const idx = Array.from(document.querySelectorAll("nav button")).indexOf(active);
+  render(TABS[Math.max(idx, 0)][0]);
+}
+initChrome();
+render("overview");
+</script>
+</body>
+</html>
