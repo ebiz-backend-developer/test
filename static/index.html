@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>School MVP — Core Modules</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header>
+  <h1>School Management MVP</h1>
+  <div class="rolebar">
+    <label>Role:
+      <select id="role">
+        <option>admin</option>
+        <option>admissions_officer</option>
+        <option selected>teacher</option>
+        <option>accountant</option>
+        <option>student</option>
+        <option>parent</option>
+      </select>
+    </label>
+    <span id="perms" class="muted"></span>
+  </div>
+  <nav id="tabs"></nav>
+</header>
+<main>
+  <div id="error" class="error" hidden></div>
+  <section id="view"></section>
+</main>
+<script src="app.js"></script>
+</body>
+</html>
