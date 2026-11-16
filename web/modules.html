@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Modules &amp; MVP</title>
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<header class="topbar">
+  <span class="brand">School MIS · Requirements &amp; Roles</span>
+  <nav>
+    <a href="/">Overview</a>
+    <a href="/roles.html">Roles</a>
+    <a href="/workflows.html">Workflows</a>
+    <a href="/modules.html" aria-current="page">Modules</a>
+    <a href="/architecture.html">Architecture</a>
+    <a href="/milestones.html">Milestones</a>
+  </nav>
+</header>
+<div class="rolebar">
+  <label>Acting role <select id="role-select"></select></label>
+  <label>Actor name <input id="user-input" size="20"></label>
+  <span id="role-perms" class="muted"></span>
+</div>
+<main>
+  <h1>Core modules &amp; MVP priority (c2)</h1>
+  <p class="lede">P0 modules form the MVP slice. Changing a priority moves the
+  module between MVP, Phase 2 and Phase 3 (needs
+  <code>modules.write</code>); status updates need
+  <code>modules.status</code>).</p>
+  <p id="mvp-status" class="muted"></p>
+  <table>
+    <thead><tr><th>Code</th><th>Module</th><th>Contains</th><th>Priority</th><th>Phase</th><th>Status</th><th>Change</th></tr></thead>
+    <tbody id="mod-rows"></tbody>
+  </table>
+</main>
+<div id="toast"></div>
+<script src="/js/app.js"></script>
+<script>
+async function load() {
+  const [modules, mvp] = await Promise.all([api("/api/modules"), api("/api/modules/mvp")]);
+  document.getElementById("mvp-status").textContent =
+    `MVP: ${mvp.modules.map((m) => m.code).join(", ")} — ${mvp.done}/${mvp.total} done.`;
+  document.getElementById("mod-rows").innerHTML = modules.map((m) =>
+    `<tr><td><code>${esc(m.code)}</code></td><td><strong>${esc(m.title)}</strong></td>` +
+    `<td>${esc(m.contains_text)}</td><td>${pill(m.priority)}</td><td>${esc(m.phase)}</td><td>${pill(m.status)}</td>` +
+    `<td><select data-mod="${esc(m.code)}-p">` +
+    ["P0", "P1", "P2"].map((p) => `<option ${p === m.priority ? "selected" : ""}>${p}</option>`).join("") +
+    `</select> <select data-mod="${esc(m.code)}-s">` +
+    ["planned", "in_progress", "done"].map((s) => `<option ${s === m.status ? "selected" : ""}>${s}</option>`).join("") +
+    `</select> <button class="ghost" data-mod="${esc(m.code)}">Save</button></td></tr>`).join("");
+  document.querySelectorAll("button[data-mod]").forEach((b) => b.addEventListener("click", async () => {
+    const code = b.dataset.mod;
+    const priority = document.querySelector(`select[data-mod="${code}-p"]`).value;
+    const status = document.querySelector(`select[data-mod="${code}-s"]`).value;
+    try {
+      await api("/api/modules/" + code, { method: "PATCH", body: JSON.stringify({ priority, status }) });
+      toast(code + " updated"); load();
+    } catch (err) { toast(err.message, true); }
+  }));
+}
+document.addEventListener("DOMContentLoaded", () => load().catch((e) => toast(e.message, true)));
+</script>
+</body>
+</html>

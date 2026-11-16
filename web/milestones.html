@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Delivery milestones</title>
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<header class="topbar">
+  <span class="brand">School MIS · Requirements &amp; Roles</span>
+  <nav>
+    <a href="/">Overview</a>
+    <a href="/roles.html">Roles</a>
+    <a href="/workflows.html">Workflows</a>
+    <a href="/modules.html">Modules</a>
+    <a href="/architecture.html">Architecture</a>
+    <a href="/milestones.html" aria-current="page">Milestones</a>
+  </nav>
+</header>
+<div class="rolebar">
+  <label>Acting role <select id="role-select"></select></label>
+  <label>Actor name <input id="user-input" size="20"></label>
+  <span id="role-perms" class="muted"></span>
+</div>
+<main>
+  <h1>Delivery milestones (c4)</h1>
+  <p class="lede">Milestones move
+  <code>proposed → approved → in_progress → done</code>. Approval needs
+  <code>milestones.approve</code> (principal/sysadmin); rejections require a
+  note. Every decision is recorded with actor and timestamp.</p>
+  <div id="milestones"></div>
+
+  <form class="panel" id="ms-form">
+    <h3>Propose a milestone (needs <code>milestones.propose</code>)</h3>
+    <div class="row">
+      <label>Code <input name="code" required placeholder="e.g. M5"></label>
+      <label>Title <input name="title" required></label>
+    </div>
+    <label>Goal <input name="goal"></label>
+    <label>Exit criteria <input name="exit_criteria"></label>
+    <div class="actions"><button type="submit">Propose</button></div>
+  </form>
+
+  <h2>Audit trail</h2>
+  <table>
+    <thead><tr><th>#</th><th>When</th><th>Actor</th><th>Action</th><th>Entity</th></tr></thead>
+    <tbody id="audit-rows"></tbody>
+  </table>
+</main>
+<div id="toast"></div>
+<script src="/js/app.js"></script>
+<script>
+async function load() {
+  const [milestones, audit] = await Promise.all([api("/api/milestones"), api("/api/audit?limit=30")]);
+  document.getElementById("milestones").innerHTML = milestones.map((m) =>
+    `<div class="panel"><h3><code>${esc(m.code)}</code> — ${esc(m.title)} ${pill(m.status)}</h3>` +
+    `<p><strong>Goal:</strong> ${esc(m.goal)}</p><p><strong>Exit criteria:</strong> ${esc(m.exit_criteria)}</p>` +
+    `<p class="muted">Proposed by ${esc(m.proposed_by || "—")}` +
+    (m.approved_by ? ` · decided by ${esc(m.approved_by)} at ${esc(m.approved_at)}` : "") + `</p>` +
+    (m.approvals.length ? `<p><strong>Decisions:</strong> ` + m.approvals.map((a) =>
+      `${esc(a.actor)} (${esc(a.role)}) ${esc(a.decision)}${a.note ? ": " + esc(a.note) : ""}`).join("; ") + `</p>` : "") +
+    `<div class="actions">` +
+    (m.status === "proposed"
+      ? `<button data-approve="${esc(m.code)}">Approve</button><button class="danger" data-reject="${esc(m.code)}">Reject</button>` : "") +
+    (m.status === "approved"
+      ? `<button data-track="in_progress:${esc(m.code)}">Start work</button>` : "") +
+    (m.status === "in_progress"
+      ? `<button data-track="done:${esc(m.code)}">Mark done</button>` : "") +
+    `</div></div>`).join("");
+  document.getElementById("audit-rows").innerHTML = audit.map((a) =>
+    `<tr><td>${a.id}</td><td>${esc(a.created_at)}</td><td>${esc(a.actor)} <code>${esc(a.role)}</code></td>` +
+    `<td><code>${esc(a.action)}</code></td><td>${esc(a.entity)} ${esc(a.entity_id)}</td></tr>`).join("");
+  document.querySelectorAll("[data-approve]").forEach((b) => b.addEventListener("click", async () => {
+    try {
+      await api(`/api/milestones/${b.dataset.approve}/approve`, { method: "POST", body: "{}" });
+      toast("Milestone approved"); load();
+    } catch (err) { toast(err.message, true); }
+  }));
+  document.querySelectorAll("[data-reject]").forEach((b) => b.addEventListener("click", async () => {
+    const note = prompt("Why is this milestone rejected? (required)", "");
+    if (note === null) return;
+    try {
+      await api(`/api/milestones/${b.dataset.reject}/reject`, { method: "POST", body: JSON.stringify({ note }) });
+      toast("Milestone rejected"); load();
+    } catch (err) { toast(err.message, true); }
+  }));
+  document.querySelectorAll("[data-track]").forEach((b) => b.addEventListener("click", async () => {
+    const [status, code] = b.dataset.track.split(":");
+    try {
+      await api(`/api/milestones/${code}`, { method: "PATCH", body: JSON.stringify({ status }) });
+      toast("Milestone → " + status); load();
+    } catch (err) { toast(err.message, true); }
+  }));
+}
+document.getElementById("ms-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  try {
+    await api("/api/milestones", { method: "POST", body: JSON.stringify({
+      code: f.get("code"), title: f.get("title"),
+      goal: f.get("goal"), exit_criteria: f.get("exit_criteria") }) });
+    toast("Milestone proposed"); e.target.reset(); load();
+  } catch (err) { toast(err.message, true); }
+});
+document.addEventListener("DOMContentLoaded", () => load().catch((e) => toast(e.message, true)));
+</script>
+</body>
+</html>

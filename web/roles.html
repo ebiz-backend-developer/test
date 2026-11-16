@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Roles &amp; stakeholders</title>
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<header class="topbar">
+  <span class="brand">School MIS · Requirements &amp; Roles</span>
+  <nav>
+    <a href="/">Overview</a>
+    <a href="/roles.html" aria-current="page">Roles</a>
+    <a href="/workflows.html">Workflows</a>
+    <a href="/modules.html">Modules</a>
+    <a href="/architecture.html">Architecture</a>
+    <a href="/milestones.html">Milestones</a>
+  </nav>
+</header>
+<div class="rolebar">
+  <label>Acting role <select id="role-select"></select></label>
+  <label>Actor name <input id="user-input" size="20"></label>
+  <span id="role-perms" class="muted"></span>
+</div>
+<main>
+  <h1>User roles &amp; permission rules (c1)</h1>
+  <p class="lede">Every API action is authorized by <code>(role, action)</code>;
+  deny by default. Students see only their own records, parents only their
+  linked wards, teachers only assigned classes unless granted class-teacher
+  scope.</p>
+  <table>
+    <thead><tr><th>Role</th><th>Responsibilities</th><th>Modules used</th><th>Granted actions</th></tr></thead>
+    <tbody id="role-rows"></tbody>
+  </table>
+
+  <h2>Stakeholders</h2>
+  <table>
+    <thead><tr><th>Stakeholder</th><th>Interest</th><th>Primary role</th><th>Journey</th></tr></thead>
+    <tbody id="stake-rows"></tbody>
+  </table>
+
+  <h2>Users</h2>
+  <table>
+    <thead><tr><th>Name</th><th>Email</th><th>Role</th></tr></thead>
+    <tbody id="user-rows"></tbody>
+  </table>
+  <form class="panel" id="user-form">
+    <h3>Add user (needs <code>users.write</code>)</h3>
+    <div class="row">
+      <label>Name <input name="name" required></label>
+      <label>Email <input name="email" type="email" required></label>
+    </div>
+    <label>Role <select name="role" id="new-user-role"></select></label>
+    <div class="actions"><button type="submit">Add user</button></div>
+  </form>
+</main>
+<div id="toast"></div>
+<script src="/js/app.js"></script>
+<script>
+async function load() {
+  const [roles, stakeholders, users] = await Promise.all([
+    api("/api/roles"), api("/api/stakeholders"), api("/api/users"),
+  ]);
+  document.getElementById("role-rows").innerHTML = roles.map((r) =>
+    `<tr><td><strong>${esc(r.title)}</strong><br><code>${esc(r.code)}</code></td>` +
+    `<td>${esc(r.responsibilities)}</td><td>${esc(r.modules_used)}</td>` +
+    `<td>${r.permissions.map((p) => `<code>${esc(p)}</code>`).join(" ") || "<span class='muted'>read-only</span>"}</td></tr>`).join("");
+  document.getElementById("stake-rows").innerHTML = stakeholders.map((s) =>
+    `<tr><td>${esc(s.label)}</td><td>${esc(s.interest)}</td><td><code>${esc(s.primary_role)}</code></td>` +
+    `<td><a href="/workflows.html#${esc(s.journey_ref)}">${esc(s.journey_ref)}</a></td></tr>`).join("");
+  document.getElementById("user-rows").innerHTML = users.map((u) =>
+    `<tr><td>${esc(u.name)}</td><td>${esc(u.email)}</td><td><code>${esc(u.role)}</code></td></tr>`).join("");
+  document.getElementById("new-user-role").innerHTML = roles.map((r) =>
+    `<option value="${esc(r.code)}">${esc(r.title)}</option>`).join("");
+}
+document.getElementById("user-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  try {
+    await api("/api/users", { method: "POST",
+      body: JSON.stringify({ name: f.get("name"), email: f.get("email"), role: f.get("role") }) });
+    toast("User added"); e.target.reset(); load();
+  } catch (err) { toast(err.message, true); }
+});
+document.addEventListener("DOMContentLoaded", () => load().catch((e) => toast(e.message, true)));
+</script>
+</body>
+</html>

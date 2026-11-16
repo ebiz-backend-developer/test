@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "school-requirements-roles"
+version = "0.1.0"
+description = "Task 3: school requirements & roles — scope, RBAC, stakeholder workflows, MVP, stack, milestones"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+reqroles-server = "app.server:main"
+
+[tool.setuptools.packages.find]
+include = ["app*", "tests*"]
