@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SchoolMS — Role Workflows</title>
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">SchoolMS <span>Task 3</span></div>
+  <nav>
+    <a href="/">Scope</a>
+    <a href="/roles.html">Roles</a>
+    <a href="/workflows.html" class="active">Workflows</a>
+    <a href="/modules.html">Modules &amp; MVP</a>
+    <a href="/architecture.html">Architecture</a>
+    <a href="/milestones.html">Milestones</a>
+  </nav>
+</header>
+<main>
+  <h1>Role workflows</h1>
+  <p class="lede">One state machine per stakeholder. Start an instance, then advance it action by action — illegal transitions and wrong-role actors are rejected by the server.</p>
+  <div id="workflows">Loading…</div>
+
+  <h2>Run a workflow</h2>
+  <form class="inline" id="start-form">
+    <select id="wf-select"></select>
+    <input id="wf-subject" placeholder="Subject, e.g. applicant Ada" size="28">
+    <button type="submit">Start instance</button>
+  </form>
+  <div id="instance"></div>
+</main>
+<footer>SchoolMS Task 3 — scope, roles, workflows, MVP, architecture, milestones.</footer>
+<script src="/js/app.js"></script>
+<script>
+let flows = [];
+fetch('/api/workflows').then(r => r.json()).then(list => {
+  flows = list;
+  document.getElementById('workflows').innerHTML = list.map(w =>
+    `<div class="card" style="margin-bottom:0.8rem"><h3>${esc(w.title)} <span class="tag">${esc(w.owner_role)}</span></h3>` +
+    `<p>${esc(w.description)}</p><div class="steps">` +
+    w.steps.map((s, i) => (i ? '<span class="arrow">→</span>' : '') + `<span class="step">${esc(s)}</span>`).join('') +
+    `</div><p>` + w.actions.map(a => `<span class="tag">${esc(a.name)} (${a.actor_roles.join(',')})</span>`).join(' ') + `</p></div>`
+  ).join('');
+  document.getElementById('wf-select').innerHTML = list.map(w => `<option value="${esc(w.id)}">${esc(w.title)}</option>`).join('');
+});
+let currentId = null;
+document.getElementById('start-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const wfId = document.getElementById('wf-select').value;
+  const subject = document.getElementById('wf-subject').value || 'demo subject';
+  const res = await fetch(`/api/workflows/${wfId}/instances`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({subject})
+  });
+  renderInstance(await res.json());
+});
+async function advance(action, role) {
+  const res = await fetch(`/api/workflow-instances/${currentId}/advance`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({action, actor_role: role})
+  });
+  const data = await res.json();
+  if (!res.ok) { alert(data.error); return; }
+  renderInstance(data);
+}
+function renderInstance(inst) {
+  currentId = inst.id;
+  const flow = flows.find(w => w.id === inst.workflow_id);
+  const idx = flow ? flow.steps.indexOf(inst.current_step) : 0;
+  const next = flow ? flow.actions.filter(a => a.from_step === inst.current_step) : [];
+  document.getElementById('instance').innerHTML =
+    `<div class="card" style="margin-top:0.8rem"><h3>#${inst.id} — ${esc(inst.workflow_id)}: ${esc(inst.subject)}</h3>` +
+    `<div class="steps">` + (flow ? flow.steps.map((s, i) =>
+      (i ? '<span class="arrow">→</span>' : '') + `<span class="step${i <= idx ? ' done' : ''}">${esc(s)}</span>`).join('') : '') +
+    `</div><p>Status: <strong>${esc(inst.status)}</strong> · Step: <strong>${esc(inst.current_step)}</strong></p>` +
+    (next.length ? next.map(a =>
+      `<form class="inline" onsubmit="event.preventDefault(); advance('${esc(a.name)}', this.role.value);">` +
+      `<span>${esc(a.label)}</span><select name="role">` +
+      ['admin','teacher','student','parent'].map(r => `<option${a.actor_roles.includes(r) ? '' : ''}>${r}</option>`).join('') +
+      `</select><button>Run ${esc(a.name)}</button></form>`).join('') : '<p>Final step reached.</p>') +
+    `<h2>Event log</h2>` + (inst.events.length
+      ? '<table><tr><th>#</th><th>Actor</th><th>Action</th><th>From</th><th>To</th></tr>' +
+        inst.events.map(v => `<tr><td>${v.id}</td><td>${esc(v.actor_role)}</td><td>${esc(v.action)}</td><td>${esc(v.from_step)}</td><td>${esc(v.to_step)}</td></tr>`).join('') + '</table>'
+      : '<p>No events yet.</p>') + `</div>`;
+  window.advance = advance;
+}
+</script>
+</body>
+</html>

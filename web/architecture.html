@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SchoolMS — Architecture</title>
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">SchoolMS <span>Task 3</span></div>
+  <nav>
+    <a href="/">Scope</a>
+    <a href="/roles.html">Roles</a>
+    <a href="/workflows.html">Workflows</a>
+    <a href="/modules.html">Modules &amp; MVP</a>
+    <a href="/architecture.html" class="active">Architecture</a>
+    <a href="/milestones.html">Milestones</a>
+  </nav>
+</header>
+<main>
+  <h1>Architecture &amp; tech stack</h1>
+  <p class="lede">Selected stack and component boundaries. The data flow runs from the static UI through the JSON API and service layer down to SQLite.</p>
+
+  <h2>Selected stack</h2>
+  <table id="stack"><tr><th>Layer</th><th>Choice</th></tr></table>
+
+  <h2>Components &amp; data flow</h2>
+  <div class="steps" id="flow"></div>
+  <div class="grid" id="components"></div>
+
+  <h2>Architecture decisions</h2>
+  <table id="adrs"><tr><th>ID</th><th>Decision</th><th>Rationale</th><th>Status</th></tr></table>
+</main>
+<footer>SchoolMS Task 3 — scope, roles, workflows, MVP, architecture, milestones.</footer>
+<script src="/js/app.js"></script>
+<script>
+fetch('/api/architecture').then(r => r.json()).then(a => {
+  document.getElementById('stack').innerHTML = '<tr><th>Layer</th><th>Choice</th></tr>' +
+    Object.entries(a.stack).map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join('');
+  document.getElementById('flow').innerHTML = a.data_flow.map((c, i) =>
+    (i ? '<span class="arrow">→</span>' : '') + `<span class="step done">${esc(c)}</span>`).join('');
+  document.getElementById('components').innerHTML = a.components.map(c =>
+    `<div class="card"><h3>${esc(c.name)}</h3><p>${esc(c.responsibility)}</p><span class="tag">${esc(c.tech)}</span></div>`).join('');
+  document.getElementById('adrs').innerHTML = '<tr><th>ID</th><th>Decision</th><th>Rationale</th><th>Status</th></tr>' +
+    a.decisions.map(d => `<tr><td>${esc(d.id)}</td><td>${esc(d.title)}</td><td>${esc(d.rationale)}</td><td>${esc(d.status)}</td></tr>`).join('');
+});
+</script>
+</body>
+</html>

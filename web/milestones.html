@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SchoolMS — Milestones</title>
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">SchoolMS <span>Task 3</span></div>
+  <nav>
+    <a href="/">Scope</a>
+    <a href="/roles.html">Roles</a>
+    <a href="/workflows.html">Workflows</a>
+    <a href="/modules.html">Modules &amp; MVP</a>
+    <a href="/architecture.html">Architecture</a>
+    <a href="/milestones.html" class="active">Milestones</a>
+  </nav>
+</header>
+<main>
+  <h1>Delivery milestones</h1>
+  <p class="lede">Each milestone needs approval from both <strong>admin</strong> and <strong>parent</strong> stakeholders before it counts as approved.</p>
+  <div id="milestones">Loading…</div>
+</main>
+<footer>SchoolMS Task 3 — scope, roles, workflows, MVP, architecture, milestones.</footer>
+<script src="/js/app.js"></script>
+<script>
+async function refresh() {
+  const list = await (await fetch('/api/milestones')).json();
+  document.getElementById('milestones').innerHTML = list.map(m =>
+    `<div class="card" style="margin-bottom:0.8rem"><h3>${esc(m.id)} — ${esc(m.title)} ` +
+    `<span class="status ${esc(m.status)}">${esc(m.status)}</span></h3>` +
+    `<p>${esc(m.goal)} <span class="tag">due week ${m.due_week}</span></p>` +
+    `<p>Approvals: ` + (m.approvals.length
+      ? m.approvals.map(a => `<span class="tag">${esc(a.role)}: ${esc(a.approver)}</span>`).join(' ')
+      : 'none yet') + `</p>` +
+    `<form class="inline" onsubmit="event.preventDefault(); approve('${esc(m.id)}', this.role.value, this.who.value);">` +
+    `<select name="role"><option value="admin">admin</option><option value="parent">parent</option>` +
+    `<option value="teacher">teacher</option><option value="student">student</option></select>` +
+    `<input name="who" placeholder="Approver name" size="20">` +
+    `<button>Approve</button></form></div>`
+  ).join('');
+}
+async function approve(id, role, who) {
+  const res = await fetch(`/api/milestones/${id}/approve`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({role, approver: who || role})
+  });
+  const data = await res.json();
+  if (!res.ok) { alert(data.error); return; }
+  refresh();
+}
+refresh();
+</script>
+</body>
+</html>

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SchoolMS — Modules &amp; MVP</title>
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">SchoolMS <span>Task 3</span></div>
+  <nav>
+    <a href="/">Scope</a>
+    <a href="/roles.html">Roles</a>
+    <a href="/workflows.html">Workflows</a>
+    <a href="/modules.html" class="active">Modules &amp; MVP</a>
+    <a href="/architecture.html">Architecture</a>
+    <a href="/milestones.html">Milestones</a>
+  </nav>
+</header>
+<main>
+  <h1>Modules &amp; MVP</h1>
+  <p class="lede">Core modules with MoSCoW ratings and MVP priorities (P0/P1 ship in the MVP). Re-prioritizing a module updates the MVP list immediately.</p>
+
+  <h2>MVP build order (dependency-aware)</h2>
+  <ol class="tight" id="mvp"><li>Loading…</li></ol>
+
+  <h2>All modules</h2>
+  <table id="modules"><tr><th>Module</th><th>MoSCoW</th><th>Priority</th><th>Depends on</th><th>Change</th></tr></table>
+</main>
+<footer>SchoolMS Task 3 — scope, roles, workflows, MVP, architecture, milestones.</footer>
+<script src="/js/app.js"></script>
+<script>
+async function refresh() {
+  const mvp = await (await fetch('/api/modules/mvp')).json();
+  document.getElementById('mvp').innerHTML = mvp.map(m =>
+    `<li><strong>${esc(m.name)}</strong> (P${m.priority}, ${esc(m.moscow)}) — ${esc(m.description)}</li>`).join('');
+  const mods = await (await fetch('/api/modules')).json();
+  document.getElementById('modules').innerHTML =
+    '<tr><th>Module</th><th>MoSCoW</th><th>Priority</th><th>Depends on</th><th>Change</th></tr>' +
+    mods.map(m => `<tr><td><strong>${esc(m.name)}</strong><br><small>${esc(m.description)}</small></td>` +
+      `<td>${esc(m.moscow)}</td><td>P${m.priority} ${m.priority < 2 ? '<span class="tag">MVP</span>' : '<span class="tag warn">later</span>'}</td>` +
+      `<td>${m.depends_on.map(esc).join(', ') || '–'}</td>` +
+      `<td><form class="inline" onsubmit="event.preventDefault(); setPriority('${esc(m.id)}', this.p.value);">` +
+      `<select name="p"><option value="0">P0</option><option value="1">P1</option><option value="2">P2</option></select>` +
+      `<button>Set</button></form></td></tr>`).join('');
+}
+async function setPriority(id, p) {
+  await fetch(`/api/modules/${id}/priority`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({priority: Number(p)})
+  });
+  refresh();
+}
+refresh();
+</script>
+</body>
+</html>

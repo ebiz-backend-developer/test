@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SchoolMS — Requirements &amp; Roles</title>
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">SchoolMS <span>Task 3</span></div>
+  <nav>
+    <a href="/" class="active">Scope</a>
+    <a href="/roles.html">Roles</a>
+    <a href="/workflows.html">Workflows</a>
+    <a href="/modules.html">Modules &amp; MVP</a>
+    <a href="/architecture.html">Architecture</a>
+    <a href="/milestones.html">Milestones</a>
+  </nav>
+</header>
+<main>
+  <h1>Scope</h1>
+  <p class="lede">Gathered requirements for the school management system: what ships, who uses it, and the delivery gates. Every section below is served live from the API.</p>
+
+  <h2>In scope</h2>
+  <ul class="tight" id="in-scope"><li>Loading…</li></ul>
+
+  <h2>Out of scope</h2>
+  <ul class="tight" id="out-scope"><li>Loading…</li></ul>
+
+  <h2>Assumptions</h2>
+  <ul class="tight" id="assumptions"><li>Loading…</li></ul>
+
+  <h2>Stakeholders</h2>
+  <div class="grid" id="stakeholders"></div>
+</main>
+<footer>SchoolMS Task 3 — scope, roles, workflows, MVP, architecture, milestones.</footer>
+<script src="/js/app.js"></script>
+<script>
+loadList('/api/scope', null, (scope) => {
+  fillList('in-scope', scope.in_scope);
+  fillList('out-scope', scope.out_of_scope);
+  fillList('assumptions', scope.assumptions);
+});
+fetch('/api/stakeholders').then(r => r.json()).then(rows => {
+  document.getElementById('stakeholders').innerHTML = rows.map(s =>
+    `<div class="card"><h3>${esc(s.name)}</h3><p>${esc(s.interest)}</p><span class="tag">${esc(s.role)}</span></div>`
+  ).join('');
+});
+</script>
+</body>
+</html>
