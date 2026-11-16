@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UX Flows — Design Hub</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html">Design <span>Hub</span></a>
+  <span class="spacer"></span>
+</header>
+<div class="layout">
+  <nav class="sidenav" data-nav></nav>
+  <main>
+    <h1>UX flows</h1>
+    <p class="lede">Step diagrams per persona with device coverage
+    (desktop / mobile / both). Designers and PMs can add flows.</p>
+    <div id="savewarn" class="notice error" hidden></div>
+    <div id="msg" class="notice" hidden></div>
+    <div class="toolbar">
+      <label for="flow">Flow</label>
+      <select id="flow"></select>
+      <label for="device">Device</label>
+      <select id="device">
+        <option value="">all</option>
+        <option value="desktop">desktop</option>
+        <option value="mobile">mobile</option>
+        <option value="both">both</option>
+      </select>
+    </div>
+    <div id="meta"></div>
+    <svg id="diagram" class="flow-svg" role="img" aria-label="Flow diagram"></svg>
+    <div id="detail" class="flow-detail"></div>
+    <h2>Add a flow</h2>
+    <form class="panel" id="addform">
+      <label for="f-name">Name</label>
+      <input type="text" id="f-name" required maxlength="200">
+      <label for="f-persona">Persona</label>
+      <input type="text" id="f-persona" required maxlength="200">
+      <label for="f-device">Device</label>
+      <select id="f-device">
+        <option value="both">both</option>
+        <option value="desktop">desktop</option>
+        <option value="mobile">mobile</option>
+      </select>
+      <label for="f-steps">Steps, one per line: Label | detail | next labels (comma separated)</label>
+      <textarea id="f-steps" placeholder="Land on signup | Marketing CTA | Enter details&#10;Enter details | Name, email | Verify email"></textarea>
+      <p><button type="submit">Add flow</button></p>
+    </form>
+  </main>
+</div>
+<nav class="bottomnav" data-nav></nav>
+<script src="js/app.js"></script>
+<script>
+Hub.mountChrome("flows.html");
+var FLOWS = [];
+function draw(flow) {
+  var svg = document.getElementById("diagram");
+  var W = 640, BH = 54, GAP = 26, PAD = 16;
+  var H = flow.steps.length * (BH + GAP) + PAD * 2;
+  svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+  var NS = "http://www.w3.org/2000/svg";
+  svg.innerHTML = "";
+  var byLabel = {};
+  flow.steps.forEach(function (s, i) { byLabel[s.label] = i; });
+  flow.steps.forEach(function (s, i) {
+    var y = PAD + i * (BH + GAP);
+    (s.next || []).forEach(function (n) {
+      var j = byLabel[n];
+      if (j === undefined || j <= i) return;
+      var y2 = PAD + j * (BH + GAP);
+      var ln = document.createElementNS(NS, "line");
+      var x = 60 + (i % 3) * 24;
+      ln.setAttribute("x1", x); ln.setAttribute("y1", y + BH);
+      ln.setAttribute("x2", x); ln.setAttribute("y2", y2);
+      ln.setAttribute("stroke", "#0e6b5e"); ln.setAttribute("stroke-width", "2");
+      svg.appendChild(ln);
+    });
+    var g = document.createElementNS(NS, "g");
+    g.setAttribute("data-i", i);
+    g.style.cursor = "pointer";
+    var rect = document.createElementNS(NS, "rect");
+    rect.setAttribute("x", 120); rect.setAttribute("y", y);
+    rect.setAttribute("width", W - 240); rect.setAttribute("height", BH);
+    rect.setAttribute("rx", "6");
+    rect.setAttribute("fill", "#f2f5f8"); rect.setAttribute("stroke", "#0e6b5e");
+    rect.setAttribute("stroke-width", "2");
+    var tx = document.createElementNS(NS, "text");
+    tx.setAttribute("x", W / 2); tx.setAttribute("y", y + 24);
+    tx.setAttribute("text-anchor", "middle");
+    tx.setAttribute("font-size", "14"); tx.setAttribute("font-weight", "bold");
+    tx.textContent = (i + 1) + ". " + s.label;
+    var sub = document.createElementNS(NS, "text");
+    sub.setAttribute("x", W / 2); sub.setAttribute("y", y + 42);
+    sub.setAttribute("text-anchor", "middle");
+    sub.setAttribute("font-size", "11"); sub.setAttribute("fill", "#4c5a72");
+    sub.textContent = (s.desc || "").slice(0, 60);
+    g.appendChild(rect); g.appendChild(tx); g.appendChild(sub);
+    g.addEventListener("click", function () {
+      var st = flow.steps[Number(g.getAttribute("data-i"))];
+      document.getElementById("detail").innerHTML = "<b>" + Hub.esc(st.label) + "</b> — " +
+        Hub.esc(st.desc || "") + "<br>Next: " + Hub.esc((st.next || []).join(", ") || "end");
+    });
+    svg.appendChild(g);
+  });
+  document.getElementById("meta").innerHTML =
+    "<p>Persona: <b></b> · device coverage: <b></b> · status: <b></b></p>";
+  var bs = document.getElementById("meta").querySelectorAll("b");
+  bs[0].textContent = flow.persona; bs[1].textContent = flow.device; bs[2].textContent = flow.status;
+}
+function load() {
+  Hub.api("/api/flows").then(function (flows) {
+    FLOWS = flows;
+    var dev = document.getElementById("device").value;
+    var sel = document.getElementById("flow");
+    sel.innerHTML = "";
+    var shown = flows.filter(function (f) { return !dev || f.device === dev; });
+    if (!shown.length) {
+      document.getElementById("diagram").innerHTML = "";
+      document.getElementById("meta").innerHTML = "<p>No flows for this device filter.</p>";
+      return;
+    }
+    shown.forEach(function (f) {
+      var o = document.createElement("option");
+      o.value = f.id; o.textContent = f.name + " (" + f.persona + ")";
+      sel.appendChild(o);
+    });
+    show(sel.value);
+  }).catch(function (e) { Hub.notice(document.getElementById("msg"), e.message, "error"); });
+}
+function show(id) {
+  Hub.api("/api/flows/" + id).then(draw)
+    .catch(function (e) { Hub.notice(document.getElementById("msg"), e.message, "error"); });
+}
+document.getElementById("flow").addEventListener("change", function (e) { show(e.target.value); });
+document.getElementById("device").addEventListener("change", load);
+document.getElementById("addform").addEventListener("submit", function (ev) {
+  ev.preventDefault();
+  var steps = document.getElementById("f-steps").value.split("\n")
+    .map(function (l) { return l.trim(); }).filter(Boolean)
+    .map(function (l) {
+      var parts = l.split("|").map(function (p) { return p.trim(); });
+      return {label: parts[0] || "", desc: parts[1] || "",
+              next: (parts[2] || "").split(",").map(function (s) { return s.trim(); }).filter(Boolean)};
+    });
+  Hub.api("/api/flows", {method: "POST", body: {
+    name: document.getElementById("f-name").value,
+    persona: document.getElementById("f-persona").value,
+    device: document.getElementById("f-device").value,
+    steps: steps
+  }}).then(function () {
+    Hub.notice(document.getElementById("msg"), "Flow added.", "ok");
+    ev.target.reset(); load();
+  }).catch(function (e) { Hub.notice(document.getElementById("msg"), e.message, "error"); });
+});
+load();
+</script>
+</body>
+</html>

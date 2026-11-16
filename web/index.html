@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Design Hub — UI/UX flows portal</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html">Design <span>Hub</span></a>
+  <span class="spacer"></span>
+</header>
+<div class="layout">
+  <nav class="sidenav" data-nav></nav>
+  <main>
+    <h1>UI/UX flows portal</h1>
+    <p class="lede">Scope, roles, modules, tech decisions, milestones, flows and
+    wireframes for the product — pick a portal to start. Use “Acting as” above
+    to switch roles; write actions enforce each role’s permissions.</p>
+    <div id="savewarn" class="notice error" hidden></div>
+    <div class="kpis" id="kpis"></div>
+    <div class="cards" id="portals"></div>
+  </main>
+</div>
+<nav class="bottomnav" data-nav></nav>
+<script src="js/app.js"></script>
+<script>
+Hub.mountChrome("index.html");
+var PORTALS = [
+  ["dashboard.html", "Dashboards", "Role-aware KPIs, MVP progress and pending approvals."],
+  ["scope.html", "Scope & Roles", "In/out of scope, assumptions, and the five user roles."],
+  ["modules.html", "Modules & MVP", "Core modules with priority and MVP membership."],
+  ["tech.html", "Tech Stack", "Proposed, selected and rejected stack per layer."],
+  ["milestones.html", "Milestones", "Delivery milestones with an approval workflow."],
+  ["flows.html", "UX Flows", "Step diagrams per persona, desktop and mobile."],
+  ["wireframes.html", "Wireframes", "Screen block specs rendered at both sizes."]
+];
+var wrap = document.getElementById("portals");
+PORTALS.forEach(function (p) {
+  var d = document.createElement("div");
+  d.className = "card";
+  d.innerHTML = "<h3></h3><p></p><div class='row'></div>";
+  d.querySelector("h3").textContent = p[1];
+  d.querySelector("p").textContent = p[2];
+  var a = document.createElement("a");
+  a.className = "btn secondary"; a.href = p[0]; a.textContent = "Open";
+  d.querySelector(".row").appendChild(a);
+  wrap.appendChild(d);
+});
+Hub.api("/api/dashboard").then(function (d) {
+  var k = document.getElementById("kpis");
+  [["MVP modules", d.counts.mvp_modules], ["Milestones", d.counts.milestones],
+   ["Pending approvals", d.pending_approvals.length],
+   ["Tech selected", d.counts.tech_selected + "/" + d.counts.tech_options],
+   ["Flows", d.counts.flows], ["Wireframes", d.counts.wireframes]
+  ].forEach(function (x) {
+    var el = document.createElement("div");
+    el.className = "kpi";
+    el.innerHTML = "<b>" + Hub.esc(x[1]) + "</b><span></span>";
+    el.querySelector("span").textContent = x[0];
+    k.appendChild(el);
+  });
+});
+</script>
+</body>
+</html>
