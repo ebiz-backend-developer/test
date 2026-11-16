@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SchoolMS Delivery Milestones</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header>
+  <h1>SchoolMS Delivery Milestones</h1>
+  <div class="rolebar">
+    <label for="role">Acting as</label>
+    <select id="role"></select>
+    <span id="health" class="pill">…</span>
+  </div>
+</header>
+<nav id="tabs">
+  <button data-tab="scope" class="active">Scope &amp; Roles</button>
+  <button data-tab="modules">Modules &amp; MVP</button>
+  <button data-tab="arch">Architecture</button>
+  <button data-tab="timeline">Milestones</button>
+  <button data-tab="risks">Risks</button>
+  <button data-tab="approvals">Approvals</button>
+</nav>
+<main>
+  <section id="tab-scope" class="tab active">
+    <h2>Scope</h2>
+    <p id="vision" class="vision"></p>
+    <div class="grid2">
+      <div><h3>In scope</h3><ul id="in-scope"></ul></div>
+      <div><h3>Out of scope</h3><ul id="out-scope"></ul></div>
+      <div><h3>Assumptions</h3><ul id="assumptions"></ul></div>
+      <div><h3>Constraints</h3><ul id="constraints"></ul></div>
+    </div>
+    <h2>User roles</h2>
+    <table id="roles"><thead><tr><th>Role</th><th>Description</th></tr></thead><tbody></tbody></table>
+  </section>
+  <section id="tab-modules" class="tab">
+    <h2>MVP readiness</h2>
+    <div id="mvp-bar" class="bar"><div></div></div>
+    <p id="mvp-text"></p>
+    <h2>Core modules</h2>
+    <table id="modules"><thead><tr>
+      <th>Module</th><th>Priority</th><th>MVP</th><th>Points</th><th>Status</th><th>Depends on</th><th></th>
+    </tr></thead><tbody></tbody></table>
+    <h3>Suggested build order</h3>
+    <ol id="build-order"></ol>
+  </section>
+  <section id="tab-arch" class="tab">
+    <h2>Tech stack</h2>
+    <p id="stack-state"></p>
+    <table id="stack"><thead><tr><th>Category</th><th>Selected</th><th>Rationale</th></tr></thead><tbody></tbody></table>
+    <h2>All options</h2>
+    <table id="arch"><thead><tr><th>Category</th><th>Option</th><th>Status</th><th></th></tr></thead><tbody></tbody></table>
+  </section>
+  <section id="tab-timeline" class="tab">
+    <h2>Delivery timeline</h2>
+    <div id="timeline"></div>
+  </section>
+  <section id="tab-risks" class="tab">
+    <h2>Risks</h2>
+    <table id="risks"><thead><tr>
+      <th>Title</th><th>Likelihood</th><th>Impact</th><th>Exposure</th><th>Status</th><th>Milestone</th><th>Mitigation</th>
+    </tr></thead><tbody></tbody></table>
+  </section>
+  <section id="tab-approvals" class="tab">
+    <h2>Milestone approvals</h2>
+    <p>Approve a milestone once its acceptance criteria are all met and no
+    high-exposure risk is still open. Rejections and change requests need a comment.</p>
+    <table id="approvals"><thead><tr>
+      <th>Milestone</th><th>Phase</th><th>Status</th><th>Health</th><th>Criteria</th><th></th>
+    </tr></thead><tbody></tbody></table>
+    <div id="approval-detail"></div>
+  </section>
+</main>
+<div id="toast" hidden></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
