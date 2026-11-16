@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Requirements &amp; Roles — Overview</title>
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<header class="topbar">
+  <span class="brand">School MIS · Requirements &amp; Roles</span>
+  <nav>
+    <a href="/" aria-current="page">Overview</a>
+    <a href="/roles.html">Roles</a>
+    <a href="/workflows.html">Workflows</a>
+    <a href="/modules.html">Modules</a>
+    <a href="/architecture.html">Architecture</a>
+    <a href="/milestones.html">Milestones</a>
+  </nav>
+</header>
+<div class="rolebar">
+  <label>Acting role <select id="role-select"></select></label>
+  <label>Actor name <input id="user-input" size="20"></label>
+  <span id="role-perms" class="muted"></span>
+</div>
+<main>
+  <h1>Task 3 — Requirements &amp; roles at a glance</h1>
+  <p class="lede">Scope, stakeholder workflows, MVP modules, selected stack and
+  milestone approvals, served live from the API. Switch the acting role above to
+  see what each school role is allowed to do.</p>
+
+  <h2>Scope (c1)</h2>
+  <div class="grid2">
+    <div><h3>In scope</h3><ul id="in-scope"></ul></div>
+    <div><h3>Out of scope</h3><ul id="out-scope"></ul></div>
+  </div>
+  <h3>Assumptions &amp; constraints</h3>
+  <ul id="assumptions"></ul>
+
+  <h2>MVP slice (c2)</h2>
+  <p id="mvp-status" class="muted"></p>
+  <table><thead><tr><th>Module</th><th>Title</th><th>Status</th></tr></thead>
+  <tbody id="mvp-rows"></tbody></table>
+
+  <h2>Selected stack (c3)</h2>
+  <table><thead><tr><th>Category</th><th>Choice</th><th>Rationale</th></tr></thead>
+  <tbody id="stack-rows"></tbody></table>
+
+  <h2>Milestones (c4)</h2>
+  <table><thead><tr><th>Code</th><th>Title</th><th>Status</th><th>Approved by</th></tr></thead>
+  <tbody id="milestone-rows"></tbody></table>
+</main>
+<div id="toast"></div>
+<script src="/js/app.js"></script>
+<script>
+async function load() {
+  const [scope, mvp, stack, milestones] = await Promise.all([
+    api("/api/scope"), api("/api/modules/mvp"),
+    api("/api/tech/selected"), api("/api/milestones"),
+  ]);
+  const li = (items) => items.map((i) =>
+    `<li><strong>${esc(i.title)}</strong> — ${esc(i.detail)}</li>`).join("");
+  document.getElementById("in-scope").innerHTML =
+    li(scope.filter((i) => i.kind === "in_scope"));
+  document.getElementById("out-scope").innerHTML =
+    li(scope.filter((i) => i.kind === "out_of_scope"));
+  document.getElementById("assumptions").innerHTML =
+    li(scope.filter((i) => i.kind === "assumption" || i.kind === "constraint"));
+  document.getElementById("mvp-status").textContent =
+    `${mvp.done}/${mvp.total} MVP modules done. Exit rule: ${mvp.exit_rule}`;
+  document.getElementById("mvp-rows").innerHTML = mvp.modules.map((m) =>
+    `<tr><td><code>${esc(m.code)}</code></td><td>${esc(m.title)}</td><td>${pill(m.status)}</td></tr>`).join("");
+  document.getElementById("stack-rows").innerHTML = stack.map((t) =>
+    `<tr><td>${esc(t.category)}</td><td>${esc(t.name)}</td><td>${esc(t.rationale)}</td></tr>`).join("");
+  document.getElementById("milestone-rows").innerHTML = milestones.map((m) =>
+    `<tr><td><code>${esc(m.code)}</code></td><td>${esc(m.title)}</td><td>${pill(m.status)}</td><td>${esc(m.approved_by || "—")}</td></tr>`).join("");
+}
+document.addEventListener("DOMContentLoaded", () => load().catch((e) => toast(e.message, true)));
+</script>
+</body>
+</html>

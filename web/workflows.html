@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stakeholder workflows</title>
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<header class="topbar">
+  <span class="brand">School MIS · Requirements &amp; Roles</span>
+  <nav>
+    <a href="/">Overview</a>
+    <a href="/roles.html">Roles</a>
+    <a href="/workflows.html" aria-current="page">Workflows</a>
+    <a href="/modules.html">Modules</a>
+    <a href="/architecture.html">Architecture</a>
+    <a href="/milestones.html">Milestones</a>
+  </nav>
+</header>
+<div class="rolebar">
+  <label>Acting role <select id="role-select"></select></label>
+  <label>Actor name <input id="user-input" size="20"></label>
+  <span id="role-perms" class="muted"></span>
+</div>
+<main>
+  <h1>Stakeholder workflows (c1)</h1>
+  <p class="lede">Each journey runs as a gated state machine: steps complete in
+  order, and only the listed roles may complete each step. Start one below and
+  advance it — switch roles to hand a step to its owner.</p>
+
+  <h2>Journeys</h2>
+  <table>
+    <thead><tr><th>Workflow</th><th>Owner role</th><th>Steps</th><th></th></tr></thead>
+    <tbody id="flow-rows"></tbody>
+  </table>
+
+  <h2 id="detail-title">Workflow detail</h2>
+  <p id="detail-desc" class="muted"></p>
+  <ol class="steps" id="step-list"></ol>
+  <div class="actions">
+    <button id="start-btn">Start instance as current role</button>
+  </div>
+
+  <h2>Running &amp; past instances</h2>
+  <table>
+    <thead><tr><th>#</th><th>Workflow</th><th>Actor</th><th>Status</th><th>At step</th><th></th></tr></thead>
+    <tbody id="inst-rows"></tbody>
+  </table>
+
+  <h2>Instance timeline</h2>
+  <div id="timeline" class="panel"><span class="muted">Pick an instance to inspect it.</span></div>
+</main>
+<div id="toast"></div>
+<script src="/js/app.js"></script>
+<script>
+let currentFlow = location.hash.slice(1) || "student";
+let currentInstance = null;
+
+async function loadFlows() {
+  const flows = await api("/api/workflows");
+  if (!flows.some((f) => f.code === currentFlow)) currentFlow = flows[0].code;
+  document.getElementById("flow-rows").innerHTML = flows.map((f) =>
+    `<tr><td><strong>${esc(f.title)}</strong><br><code>${esc(f.code)}</code></td>` +
+    `<td><code>${esc(f.role)}</code></td><td>${f.step_count}</td>` +
+    `<td><button class="ghost" data-flow="${esc(f.code)}">Open</button></td></tr>`).join("");
+  document.querySelectorAll("[data-flow]").forEach((b) =>
+    b.addEventListener("click", () => { currentFlow = b.dataset.flow; loadDetail(); }));
+  await loadDetail();
+  await loadInstances();
+}
+
+async function loadDetail() {
+  const f = await api("/api/workflows/" + currentFlow);
+  document.getElementById("detail-title").textContent = f.title + ` (${f.code})`;
+  document.getElementById("detail-desc").textContent = f.description;
+  document.getElementById("step-list").innerHTML = f.steps.map((s) =>
+    `<li><strong>[${esc(s.module)}] ${esc(s.title)}</strong><br>${esc(s.detail)}` +
+    `<div class="step-meta">May complete: ${s.allowed_roles.map((r) => `<code>${esc(r)}</code>`).join(" ")}` +
+    (s.required_action ? ` · needs action <code>${esc(s.required_action)}</code>` : "") +
+    `<br>Gate: ${esc(s.gate)}</div></li>`).join("");
+  history.replaceState(null, "", "#" + f.code);
+}
+
+async function loadInstances() {
+  const insts = await api("/api/instances");
+  document.getElementById("inst-rows").innerHTML = insts.map((i) =>
+    `<tr><td>${i.id}</td><td><code>${esc(i.workflow_code)}</code></td><td>${esc(i.actor)}</td>` +
+    `<td>${pill(i.status)}</td><td>${i.current_position}</td>` +
+    `<td><button class="ghost" data-inst="${i.id}">Open</button></td></tr>`).join("") ||
+    `<tr><td colspan="6" class="muted">No instances yet.</td></tr>`;
+  document.querySelectorAll("[data-inst]").forEach((b) =>
+    b.addEventListener("click", () => openInstance(Number(b.dataset.inst))));
+}
+
+async function openInstance(id) {
+  const i = await api("/api/instances/" + id);
+  currentInstance = i;
+  const f = await api("/api/workflows/" + i.workflow_code);
+  const stepName = (pos) => {
+    const s = f.steps.find((s) => s.position === pos);
+    return s ? `step ${pos}: ${esc(s.title)}` : `position ${pos}`;
+  };
+  document.getElementById("timeline").innerHTML =
+    `<strong>#${i.id} ${esc(i.workflow_code)}</strong> ${pill(i.status)}` +
+    ` — started by ${esc(i.actor)}, now at ${stepName(i.current_position)} of ${i.total_steps}` +
+    `<ol class="steps">` + i.events.map((e) =>
+      `<li><strong>${esc(e.actor)}</strong> <code>${esc(e.role)}</code>: ` +
+      `${e.from_position} → ${e.to_position} — ${esc(e.note)}` +
+      `<div class="step-meta">${esc(e.created_at)}</div></li>`).join("") + `</ol>` +
+    (i.status === "open"
+      ? `<div class="actions"><button id="adv-btn">Complete current step as ${esc(store.role)}</button>` +
+        `<button id="cancel-btn" class="danger">Cancel instance</button></div>`
+      : "");
+  const adv = document.getElementById("adv-btn");
+  if (adv) adv.addEventListener("click", async () => {
+    try {
+      currentInstance = await api(`/api/instances/${i.id}/advance`, { method: "POST", body: "{}" });
+      toast(`Advanced to step ${currentInstance.current_position} (${currentInstance.status})`);
+      openInstance(i.id); loadInstances();
+    } catch (err) { toast(err.message, true); }
+  });
+  const cancel = document.getElementById("cancel-btn");
+  if (cancel) cancel.addEventListener("click", async () => {
+    try {
+      await api(`/api/instances/${i.id}/cancel`, { method: "POST", body: "{}" });
+      toast("Instance cancelled"); openInstance(i.id); loadInstances();
+    } catch (err) { toast(err.message, true); }
+  });
+}
+
+document.getElementById("start-btn").addEventListener("click", async () => {
+  try {
+    const inst = await api(`/api/workflows/${currentFlow}/instances`, { method: "POST", body: "{}" });
+    toast(`Started instance #${inst.id}`); loadInstances(); openInstance(inst.id);
+  } catch (err) { toast(err.message, true); }
+});
+document.addEventListener("DOMContentLoaded", () => loadFlows().catch((e) => toast(e.message, true)));
+</script>
+</body>
+</html>
