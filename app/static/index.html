@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Integrations &amp; Reports Dashboard</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<header>
+  <h1>Integrations &amp; Reports</h1>
+  <div class="auth">
+    <label>API key <input id="apiKey" type="password" size="24" placeholder="dev-admin-key"></label>
+    <select id="rolePreset" title="Fill a seeded dev key">
+      <option value="">preset…</option>
+      <option value="dev-admin-key">admin</option>
+      <option value="dev-finance-key">finance</option>
+      <option value="dev-support-key">support</option>
+      <option value="dev-auditor-key">auditor</option>
+      <option value="dev-developer-key">developer</option>
+      <option value="dev-user-key">user</option>
+    </select>
+    <button id="connectBtn">Connect</button>
+    <span id="whoami"></span>
+  </div>
+</header>
+<main>
+  <section id="status"><h2>Integration status</h2><div id="statusCards" class="cards"></div></section>
+  <section>
+    <h2>Payments</h2>
+    <form id="payForm" class="row">
+      <input name="customer_email" placeholder="customer@example.com" required>
+      <input name="amount_cents" type="number" min="1" value="1999" required>
+      <input name="currency" value="USD" size="4">
+      <select name="provider"><option>stripe_mock</option><option>bank_mock</option></select>
+      <select name="payment_method"><option value="tok_ok">tok_ok</option><option value="tok_fail">tok_fail</option></select>
+      <button>Create + confirm</button>
+    </form>
+    <table id="payTable"><thead><tr><th>ID</th><th>Customer</th><th>Amount</th><th>Provider</th><th>Status</th><th>Actions</th></tr></thead><tbody></tbody></table>
+  </section>
+  <section>
+    <h2>Notifications</h2>
+    <form id="msgForm" class="row">
+      <select name="channel"><option>email</option><option>sms</option></select>
+      <input name="recipient" placeholder="recipient" required>
+      <select name="template_name"><option value="">(no template)</option></select>
+      <input name="body" placeholder="body (or template vars as k=v,k=v)">
+      <button>Send</button>
+    </form>
+    <table id="msgTable"><thead><tr><th>ID</th><th>Channel</th><th>Recipient</th><th>Template</th><th>Status</th></tr></thead><tbody></tbody></table>
+  </section>
+  <section>
+    <h2>Analytics</h2>
+    <form id="evtForm" class="row">
+      <input name="name" placeholder="event name" value="page_view" required>
+      <input name="user_ref" placeholder="user ref">
+      <button>Track</button>
+      <button type="button" id="refreshAnalytics">Refresh summary</button>
+    </form>
+    <pre id="analyticsOut"></pre>
+  </section>
+  <section>
+    <h2>Compliance reports</h2>
+    <form id="rptForm" class="row">
+      <select name="report_type">
+        <option>transactions</option><option>refunds</option><option>notifications</option>
+        <option>access_audit</option><option>revenue_daily</option>
+      </select>
+      <select name="format"><option>csv</option><option>json</option></select>
+      <button>Run report</button>
+      <button type="button" id="refreshReports">Refresh</button>
+    </form>
+    <table id="rptTable"><thead><tr><th>ID</th><th>Type</th><th>Format</th><th>Rows</th><th>Created</th><th></th></tr></thead><tbody></tbody></table>
+  </section>
+  <section>
+    <h2>Plan: modules &amp; milestones</h2>
+    <div class="cols">
+      <div><h3>Modules (MVP)</h3><table id="modTable"><thead><tr><th>Module</th><th>Pri</th><th>Status</th></tr></thead><tbody></tbody></table></div>
+      <div><h3>Milestones</h3><table id="msTable"><thead><tr><th>#</th><th>Title</th><th>Status</th><th></th></tr></thead><tbody></tbody></table></div>
+    </div>
+  </section>
+</main>
+<script src="/app.js"></script>
+</body>
+</html>
