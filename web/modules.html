@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Modules &amp; MVP — Design Hub</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html">Design <span>Hub</span></a>
+  <span class="spacer"></span>
+</header>
+<div class="layout">
+  <nav class="sidenav" data-nav></nav>
+  <main>
+    <h1>Modules &amp; MVP</h1>
+    <p class="lede">Criterion c2: core modules with priority (P0–P3) and MVP
+    membership. PMs and admins prioritize; developers update build status.</p>
+    <div id="savewarn" class="notice error" hidden></div>
+    <div id="msg" class="notice" hidden></div>
+    <div class="toolbar">
+      <label><input type="checkbox" id="mvponly"> MVP only</label>
+    </div>
+    <div id="modules"></div>
+    <h2>Prioritize a module</h2>
+    <form class="panel" id="prioform">
+      <label for="p-mod">Module</label>
+      <select id="p-mod"></select>
+      <label for="p-prio">Priority</label>
+      <select id="p-prio">
+        <option>P0</option><option>P1</option><option>P2</option><option>P3</option>
+      </select>
+      <label><input type="checkbox" id="p-mvp" checked> In MVP</label>
+      <p><button type="submit">Save priority</button></p>
+    </form>
+    <h2>Update build status</h2>
+    <form class="panel" id="statusform">
+      <label for="s-mod">Module</label>
+      <select id="s-mod"></select>
+      <label for="s-status">Status</label>
+      <select id="s-status">
+        <option value="planned">planned</option>
+        <option value="in_design">in_design</option>
+        <option value="in_build">in_build</option>
+        <option value="done">done</option>
+      </select>
+      <p><button type="submit">Save status</button></p>
+    </form>
+  </main>
+</div>
+<nav class="bottomnav" data-nav></nav>
+<script src="js/app.js"></script>
+<script>
+Hub.mountChrome("modules.html");
+function badge_cls(p) { return p === "P0" ? "p0" : p === "P1" ? "p1" : ""; }
+function load() {
+  var q = document.getElementById("mvponly").checked ? "?mvp=1" : "";
+  Hub.api("/api/modules" + q).then(function (mods) {
+    var html = "<table><thead><tr><th>Module</th><th>Priority</th><th>MVP</th><th>Status</th><th>Owner</th></tr></thead><tbody>";
+    mods.forEach(function (m) {
+      html += "<tr><td>" + Hub.esc(m.name) + "<br><small>" + Hub.esc(m.description) +
+        "</small></td><td>" + Hub.badge(m.priority, badge_cls(m.priority)) +
+        "</td><td>" + (m.mvp ? Hub.badge("MVP", "ok") : Hub.badge("post-MVP", "dim")) +
+        "</td><td>" + Hub.esc(m.status) + "</td><td>" + Hub.esc(m.owner_role) + "</td></tr>";
+    });
+    document.getElementById("modules").innerHTML = html + "</tbody></table>";
+    ["p-mod", "s-mod"].forEach(function (id) {
+      var sel = document.getElementById(id);
+      sel.innerHTML = "";
+      mods.forEach(function (m) {
+        var o = document.createElement("option");
+        o.value = m.id; o.textContent = m.name;
+        sel.appendChild(o);
+      });
+    });
+  }).catch(function (e) { Hub.notice(document.getElementById("msg"), e.message, "error"); });
+}
+document.getElementById("mvponly").addEventListener("change", load);
+document.getElementById("prioform").addEventListener("submit", function (ev) {
+  ev.preventDefault();
+  var id = document.getElementById("p-mod").value;
+  Hub.api("/api/modules/" + id + "/prioritize", {method: "POST", body: {
+    priority: document.getElementById("p-prio").value,
+    mvp: document.getElementById("p-mvp").checked
+  }}).then(function () {
+    Hub.notice(document.getElementById("msg"), "Priority saved.", "ok"); load();
+  }).catch(function (e) { Hub.notice(document.getElementById("msg"), e.message, "error"); });
+});
+document.getElementById("statusform").addEventListener("submit", function (ev) {
+  ev.preventDefault();
+  var id = document.getElementById("s-mod").value;
+  Hub.api("/api/modules/" + id, {method: "PATCH", body: {
+    status: document.getElementById("s-status").value
+  }}).then(function () {
+    Hub.notice(document.getElementById("msg"), "Status saved.", "ok"); load();
+  }).catch(function (e) { Hub.notice(document.getElementById("msg"), e.message, "error"); });
+});
+load();
+</script>
+</body>
+</html>

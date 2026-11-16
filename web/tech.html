@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tech Stack — Design Hub</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html">Design <span>Hub</span></a>
+  <span class="spacer"></span>
+</header>
+<div class="layout">
+  <nav class="sidenav" data-nav></nav>
+  <main>
+    <h1>Architecture &amp; tech stack</h1>
+    <p class="lede">Criterion c3: one selected option per layer. Developers may
+    propose; only admins and PMs select. Selecting supersedes the prior pick.</p>
+    <div id="savewarn" class="notice error" hidden></div>
+    <div id="msg" class="notice" hidden></div>
+    <div class="toolbar">
+      <label for="layer">Layer</label>
+      <select id="layer">
+        <option value="">all</option>
+        <option>frontend</option><option>backend</option><option>data</option>
+        <option>mobile</option><option>infra</option>
+      </select>
+    </div>
+    <div id="tech"></div>
+    <h2>Propose an option</h2>
+    <form class="panel" id="addform">
+      <label for="f-layer">Layer</label>
+      <select id="f-layer">
+        <option>frontend</option><option>backend</option><option>data</option>
+        <option>mobile</option><option>infra</option>
+      </select>
+      <label for="f-name">Name</label>
+      <input type="text" id="f-name" required maxlength="200">
+      <label for="f-desc">Description</label>
+      <textarea id="f-desc"></textarea>
+      <p><button type="submit">Propose</button></p>
+    </form>
+  </main>
+</div>
+<nav class="bottomnav" data-nav></nav>
+<script src="js/app.js"></script>
+<script>
+Hub.mountChrome("tech.html");
+function load() {
+  var layer = document.getElementById("layer").value;
+  var q = layer ? "?layer=" + encodeURIComponent(layer) : "";
+  Hub.api("/api/tech" + q).then(function (opts) {
+    var html = "<table><thead><tr><th>Layer</th><th>Option</th><th>Status</th><th>Rationale</th><th>Decide</th></tr></thead><tbody>";
+    opts.forEach(function (o) {
+      html += "<tr><td>" + Hub.esc(o.layer) + "</td><td><b>" + Hub.esc(o.name) +
+        "</b><br><small>" + Hub.esc(o.description) + "</small></td><td>" +
+        Hub.badge(o.status, o.status === "selected" ? "ok" : o.status === "proposed" ? "p1" : "dim") +
+        "</td><td><small>" + Hub.esc(o.rationale || "—") + "</small></td>" +
+        "<td><button class='secondary' data-act='select' data-id='" + o.id + "'>Select</button> " +
+        "<button class='danger' data-act='reject' data-id='" + o.id + "'>Reject</button></td></tr>";
+    });
+    var el = document.getElementById("tech");
+    el.innerHTML = html + "</tbody></table>";
+    el.querySelectorAll("button").forEach(function (b) {
+      b.addEventListener("click", function () {
+        Hub.api("/api/tech/" + b.dataset.id + "/" + b.dataset.act, {method: "POST", body: {}})
+          .then(function () { Hub.notice(document.getElementById("msg"), "Decision saved.", "ok"); load(); })
+          .catch(function (e) { Hub.notice(document.getElementById("msg"), e.message, "error"); });
+      });
+    });
+  }).catch(function (e) { Hub.notice(document.getElementById("msg"), e.message, "error"); });
+}
+document.getElementById("layer").addEventListener("change", load);
+document.getElementById("addform").addEventListener("submit", function (ev) {
+  ev.preventDefault();
+  Hub.api("/api/tech", {method: "POST", body: {
+    layer: document.getElementById("f-layer").value,
+    name: document.getElementById("f-name").value,
+    description: document.getElementById("f-desc").value
+  }}).then(function () {
+    Hub.notice(document.getElementById("msg"), "Option proposed.", "ok");
+    ev.target.reset(); load();
+  }).catch(function (e) { Hub.notice(document.getElementById("msg"), e.message, "error"); });
+});
+load();
+</script>
+</body>
+</html>

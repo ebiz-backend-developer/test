@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wireframes — Design Hub</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html">Design <span>Hub</span></a>
+  <span class="spacer"></span>
+</header>
+<div class="layout">
+  <nav class="sidenav" data-nav></nav>
+  <main>
+    <h1>Wireframes</h1>
+    <p class="lede">Screen block specs rendered at desktop and mobile widths.
+    Only admins and designers can add wireframes.</p>
+    <div id="savewarn" class="notice error" hidden></div>
+    <div id="msg" class="notice" hidden></div>
+    <div class="toolbar">
+      <label for="wf">Wireframe</label>
+      <select id="wf"></select>
+      <label for="size">Preview width</label>
+      <select id="size">
+        <option value="desktop">desktop</option>
+        <option value="mobile">mobile</option>
+      </select>
+    </div>
+    <div id="meta"></div>
+    <div id="canvas" class="wf-canvas"></div>
+    <h2>Add a wireframe</h2>
+    <form class="panel" id="addform">
+      <label for="f-title">Title</label>
+      <input type="text" id="f-title" required maxlength="200">
+      <label for="f-screen">Screen</label>
+      <input type="text" id="f-screen" required maxlength="200" placeholder="dashboard">
+      <label for="f-device">Device</label>
+      <select id="f-device">
+        <option value="desktop">desktop</option>
+        <option value="mobile">mobile</option>
+        <option value="both">both</option>
+      </select>
+      <label for="f-module">Module (optional)</label>
+      <select id="f-module"><option value="">— none —</option></select>
+      <label for="f-blocks">Blocks, one per line: type | label</label>
+      <textarea id="f-blocks" placeholder="header | Top bar with logo&#10;list | Task list"></textarea>
+      <p><button type="submit">Add wireframe</button></p>
+    </form>
+  </main>
+</div>
+<nav class="bottomnav" data-nav></nav>
+<script src="js/app.js"></script>
+<script>
+Hub.mountChrome("wireframes.html");
+function render(wf) {
+  document.getElementById("meta").innerHTML =
+    "<p>Screen: <b></b> · device: <b></b> · status: <b></b></p>";
+  var bs = document.getElementById("meta").querySelectorAll("b");
+  bs[0].textContent = wf.screen; bs[1].textContent = wf.device; bs[2].textContent = wf.status;
+  var c = document.getElementById("canvas");
+  c.className = "wf-canvas" + (document.getElementById("size").value === "mobile" ? " mobile" : "");
+  c.innerHTML = "";
+  var h = document.createElement("h3");
+  h.textContent = wf.title;
+  h.style.marginTop = "0";
+  c.appendChild(h);
+  wf.blocks.forEach(function (b) {
+    var d = document.createElement("div");
+    d.className = "wf-block";
+    var t = document.createElement("b");
+    t.textContent = b.type;
+    d.appendChild(t);
+    d.appendChild(document.createTextNode(b.label));
+    c.appendChild(d);
+  });
+}
+function load() {
+  Hub.api("/api/wireframes").then(function (wfs) {
+    var sel = document.getElementById("wf");
+    sel.innerHTML = "";
+    wfs.forEach(function (w) {
+      var o = document.createElement("option");
+      o.value = w.id;
+      o.textContent = w.title + " [" + w.device + "]" + (w.module_name ? " — " + w.module_name : "");
+      sel.appendChild(o);
+    });
+    if (wfs.length) show(sel.value);
+  }).catch(function (e) { Hub.notice(document.getElementById("msg"), e.message, "error"); });
+  Hub.api("/api/modules").then(function (mods) {
+    var sel = document.getElementById("f-module");
+    mods.forEach(function (m) {
+      var o = document.createElement("option");
+      o.value = m.id; o.textContent = m.name;
+      sel.appendChild(o);
+    });
+  }).catch(function () {});
+}
+function show(id) {
+  Hub.api("/api/wireframes/" + id).then(function (wf) {
+    render(wf);
+    document.getElementById("wf").dataset.current = id;
+  }).catch(function (e) { Hub.notice(document.getElementById("msg"), e.message, "error"); });
+}
+document.getElementById("wf").addEventListener("change", function (e) { show(e.target.value); });
+document.getElementById("size").addEventListener("change", function () {
+  var id = document.getElementById("wf").value;
+  if (id) show(id);
+});
+document.getElementById("addform").addEventListener("submit", function (ev) {
+  ev.preventDefault();
+  var blocks = document.getElementById("f-blocks").value.split("\n")
+    .map(function (l) { return l.trim(); }).filter(Boolean)
+    .map(function (l) {
+      var parts = l.split("|").map(function (p) { return p.trim(); });
+      return {type: parts[0] || "", label: parts[1] || ""};
+    });
+  var modVal = document.getElementById("f-module").value;
+  Hub.api("/api/wireframes", {method: "POST", body: {
+    title: document.getElementById("f-title").value,
+    screen: document.getElementById("f-screen").value,
+    device: document.getElementById("f-device").value,
+    module_id: modVal ? Number(modVal) : null,
+    blocks: blocks
+  }}).then(function () {
+    Hub.notice(document.getElementById("msg"), "Wireframe added.", "ok");
+    ev.target.reset(); load();
+  }).catch(function (e) { Hub.notice(document.getElementById("msg"), e.message, "error"); });
+});
+load();
+</script>
+</body>
+</html>
