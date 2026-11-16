@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard — Design Hub</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html">Design <span>Hub</span></a>
+  <span class="spacer"></span>
+</header>
+<div class="layout">
+  <nav class="sidenav" data-nav></nav>
+  <main>
+    <h1 id="title">Dashboard</h1>
+    <p class="lede" id="lede">Live counts from the API for your current role.</p>
+    <div id="savewarn" class="notice error" hidden></div>
+    <div id="msg" class="notice error" hidden></div>
+    <div class="kpis" id="kpis"></div>
+    <h2>Pending approvals</h2>
+    <div id="approvals"></div>
+    <h2>MVP modules</h2>
+    <div id="mvp"></div>
+    <h2>Selected tech</h2>
+    <div id="tech"></div>
+  </main>
+</div>
+<nav class="bottomnav" data-nav></nav>
+<script src="js/app.js"></script>
+<script>
+Hub.mountChrome("dashboard.html");
+Hub.api("/api/users").then(function (users) {
+  var me = users.filter(function (u) { return u.username === Hub.currentUser(); })[0];
+  var role = me ? me.role : "stakeholder";
+  document.getElementById("title").textContent =
+    "Dashboard — " + (me ? me.display_name : role);
+  return Hub.api("/api/dashboard?role=" + encodeURIComponent(role));
+}).then(function (d) {
+  var k = document.getElementById("kpis");
+  [["Modules", d.counts.modules], ["MVP", d.counts.mvp_modules],
+   ["Milestones", d.counts.milestones], ["Flows", d.counts.flows],
+   ["Wireframes", d.counts.wireframes]].forEach(function (x) {
+    var el = document.createElement("div");
+    el.className = "kpi";
+    el.innerHTML = "<b>" + Hub.esc(x[1]) + "</b><span></span>";
+    el.querySelector("span").textContent = x[0];
+    k.appendChild(el);
+  });
+  var ap = document.getElementById("approvals");
+  if (!d.pending_approvals.length) ap.innerHTML = "<p>Nothing waiting for approval.</p>";
+  d.pending_approvals.forEach(function (m) {
+    var el = document.createElement("div");
+    el.className = "card";
+    el.innerHTML = "<h3></h3><p></p>";
+    el.querySelector("h3").textContent = m.title;
+    el.querySelector("p").textContent = "Due " + (m.due_date || "—") + " · status: " + m.status;
+    ap.appendChild(el);
+  });
+  var mvp = document.getElementById("mvp");
+  var t = "<table><thead><tr><th>Module</th><th>Priority</th><th>Status</th></tr></thead><tbody>";
+  d.mvp_modules.forEach(function (m) {
+    t += "<tr><td>" + Hub.esc(m.name) + "</td><td>" +
+      Hub.badge(m.priority, m.priority === "P0" ? "p0" : m.priority === "P1" ? "p1" : "") +
+      "</td><td>" + Hub.esc(m.status) + "</td></tr>";
+  });
+  mvp.innerHTML = t + "</tbody></table>";
+  var tech = document.getElementById("tech");
+  var t2 = "<table><thead><tr><th>Layer</th><th>Selected</th></tr></thead><tbody>";
+  d.selected_tech.forEach(function (o) {
+    t2 += "<tr><td>" + Hub.esc(o.layer) + "</td><td>" + Hub.esc(o.name) + "</td></tr>";
+  });
+  tech.innerHTML = t2 + "</tbody></table>";
+}).catch(function (e) { Hub.notice(document.getElementById("msg"), e.message, "error"); });
+</script>
+</body>
+</html>

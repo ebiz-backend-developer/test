@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scope &amp; Roles — Design Hub</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html">Design <span>Hub</span></a>
+  <span class="spacer"></span>
+</header>
+<div class="layout">
+  <nav class="sidenav" data-nav></nav>
+  <main>
+    <h1>Scope &amp; roles</h1>
+    <p class="lede">Criterion c1: what is in scope, and who may do what.
+    Only admins and product managers can add scope items.</p>
+    <div id="savewarn" class="notice error" hidden></div>
+    <div id="msg" class="notice" hidden></div>
+    <h2>User roles</h2>
+    <div id="roles"></div>
+    <h2>Scope</h2>
+    <div id="scope"></div>
+    <h2>Add scope item</h2>
+    <form class="panel" id="addform">
+      <label for="f-title">Title</label>
+      <input type="text" id="f-title" required maxlength="200">
+      <label for="f-kind">Kind</label>
+      <select id="f-kind">
+        <option value="in_scope">In scope</option>
+        <option value="out_of_scope">Out of scope</option>
+        <option value="assumption">Assumption</option>
+      </select>
+      <label for="f-detail">Detail</label>
+      <textarea id="f-detail"></textarea>
+      <p><button type="submit">Add item</button></p>
+    </form>
+  </main>
+</div>
+<nav class="bottomnav" data-nav></nav>
+<script src="js/app.js"></script>
+<script>
+Hub.mountChrome("scope.html");
+function load() {
+  Hub.api("/api/roles").then(function (roles) {
+    var html = "<table><thead><tr><th>Role</th><th>Description</th><th>Permissions</th></tr></thead><tbody>";
+    roles.forEach(function (r) {
+      html += "<tr><td>" + Hub.esc(r.name) + "</td><td>" + Hub.esc(r.description) +
+        "</td><td>" + r.permissions.map(function (p) { return Hub.badge(p, "dim"); }).join(" ") + "</td></tr>";
+    });
+    document.getElementById("roles").innerHTML = html + "</tbody></table>";
+  });
+  Hub.api("/api/scope").then(function (items) {
+    var html = "<table><thead><tr><th>Title</th><th>Kind</th><th>Detail</th></tr></thead><tbody>";
+    items.forEach(function (i) {
+      html += "<tr><td>" + Hub.esc(i.title) + "</td><td>" +
+        Hub.badge(i.kind, i.kind === "in_scope" ? "ok" : "") + "</td><td>" +
+        Hub.esc(i.detail) + "</td></tr>";
+    });
+    document.getElementById("scope").innerHTML = html + "</tbody></table>";
+  }).catch(function (e) { Hub.notice(document.getElementById("msg"), e.message, "error"); });
+}
+document.getElementById("addform").addEventListener("submit", function (ev) {
+  ev.preventDefault();
+  Hub.api("/api/scope", {method: "POST", body: {
+    title: document.getElementById("f-title").value,
+    kind: document.getElementById("f-kind").value,
+    detail: document.getElementById("f-detail").value
+  }}).then(function () {
+    Hub.notice(document.getElementById("msg"), "Scope item added.", "ok");
+    ev.target.reset(); load();
+  }).catch(function (e) { Hub.notice(document.getElementById("msg"), e.message, "error"); });
+});
+load();
+</script>
+</body>
+</html>
